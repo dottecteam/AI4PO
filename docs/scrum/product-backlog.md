@@ -1,6 +1,6 @@
 # Backlog do Produto — AI4PO (Pro4Tech)
 
-| ID | User Story | Prioridade | Épico | Sprint |
+| ID | User Story | Prioridade | Estimativa | Sprint |
 | :-: | :--- | :-: | :-: | :-: |
 | #1 | Como usuário, desejo **entrar com minhas credenciais** para acessar as funcionalidades permitidas ao meu perfil. | Alta | E5 | 1 |
 | #2 | Como PO, desejo **gerenciar meus projetos (cadastrar e editar)** para que eles possam receber documentos e organizar a base de conhecimento. | Alta | E1 | 1 |
