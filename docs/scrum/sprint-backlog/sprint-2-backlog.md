@@ -1,0 +1,48 @@
+# Backlog da Sprint 2
+
+| ID | User Story | Definição de Pronto | Definição de Feito | Estimativa |
+|:---:|:---|:---|:---|:---:|
+| #2 | Como PO, desejo **editar meus projetos** para que as informações permaneçam atualizadas e eles continuem recebendo documentos. | - Cadastro de projetos entregue na Sprint 1;</br> - Layout da tela de edição aprovado. | - Edição persistindo os dados atualizados;</br> - Validações de campos obrigatórios e nome duplicado aplicadas também na edição;</br> - Fluxo validado pela equipe. |  |
+| #5 | Como PO, desejo **submeter o rascunho de uma especificação** para que a IA identifique lacunas e pontos de atenção com base no histórico da empresa. | - Base de conhecimento indexada (Sprint 1);</br> - Prompt de análise definido pela equipe;</br> - Layout da tela de análise aprovado. | - Rascunho analisado exibindo lacunas e sugestões fundamentadas no histórico;</br> - Sugestões indicando o projeto/entrega de origem;</br> - Rascunho vazio bloqueado com orientação de preenchimento. |  |
+| #6 | Como PO, desejo **reformatar requisitos** para que fiquem no padrão oficial da Pro4Tech. | - Regras do padrão oficial documentadas (título no infinitivo, user story, cenários DADO/QUANDO/ENTÃO);</br> - Prompt de reformatar definido;</br> - Layout da tela aprovado. | - Requisito fora do padrão reformatado conforme o guia oficial;</br> - Estrutura gerada validada pela equipe;</br> - Ajustes adicionais regenerados conforme orientação do PO. |  |
+| #7 | Como PO, desejo **visualizar alertas de requisitos ou integrações semelhantes** durante a escrita para evitar duplicação de esforço. | - Base de conhecimento indexada;</br> - Limite de similaridade definido pela equipe;</br> - Comportamento do alerta aprovado. | - Alerta exibido durante a escrita quando existe requisito semelhante registrado;</br> - Alerta indicando o projeto/documento semelhante;</br> - Nenhum alerta exibido para conteúdo sem similares. |  |
+| #8 | Como membro do time, desejo **validar se a documentação técnica segue o padrão oficial** para evitar perda de conhecimento quando alguém sair da equipe. | - Regras do guia oficial codificadas como checklist;</br> - Layout do resultado da validação aprovado. | - Validação listando pendências objetivas (ex.: PBI sem verbo no infinitivo);</br> - Especificação completa indicando conformidade;</br> - Resultado claro e acionável para o usuário. |  |
+| #9 | Como PO, desejo **exportar os requisitos gerados pela IA em formatos padrão** para anexar nas ferramentas de gestão da equipe. | - Formatos de exportação definidos pela equipe;</br> - Estrutura do arquivo mapeada conforme o guia;</br> - Biblioteca de geração escolhida. | - Exportação funcionando para os formatos definidos;</br> - Arquivo gerado com a estrutura completa do guia;</br> - Falha na geração informando o erro e permitindo nova tentativa. |  |
+| #10 | Como administrador, desejo **desativar ou excluir o login de um PO** para revogar o acesso de quem não faz mais parte da equipe. | - Estados do login definidos (ativo, desativado);</br> - Regras de preservação de histórico definidas;</br> - Layout da tela administrativa aprovado. | - Login desativado ou excluído impedido de autenticar;</br> - Documentos e histórico dos projetos preservados;</br> - Ação repetida informando o estado atual do login. |  |
+
+---
+
+## Tasks
+
+| ID | Descrição | Definição de Pronto | Definição de Feito | Estimativa |
+|:---:|:---|:---|:---|:---:|
+| #2-4 | Implementar rota de edição de projetos na API. | - Cadastro de projetos funcionando. | - Endpoint atualizando os dados do projeto com as mesmas validações do cadastro. |  |
+| #2-5 | Implementar tela de edição de projetos no frontend. | - Rota de edição disponível;</br> - Layout aprovado pela equipe. | - PO consegue editar os dados do projeto e a alteração é refletida na listagem. |  |
+| #2-6 | Realizar testes do fluxo de edição de projetos. | - Edição implementada. | - Cenários validados: edição com sucesso e edição bloqueada por nome duplicado ou campo faltante. |  |
+| #5-1 | Definir prompt de análise de lacunas com base no guia de especificação da empresa. | - Regras do guia documentadas. | - Prompt criado e documentado em `/docs`, validado com rascunhos de exemplo. |  |
+| #5-2 | Implementar busca semântica (RAG) no histórico indexado para fundamentar a análise. | - Base vetorial populada na Sprint 1. | - Consultas retornando trechos relevantes do histórico com origem (projeto/documento). |  |
+| #5-3 | Implementar rota de submissão de rascunho e retorno da análise na API. | - Prompt e busca semântica prontos. | - Endpoint recebendo o rascunho e retornando lacunas e sugestões estruturadas. |  |
+| #5-4 | Implementar tela de submissão do rascunho e exibição do resultado no frontend. | - Rota de análise disponível;</br> - Layout aprovado pela equipe. | - PO consegue submeter o rascunho e visualizar lacunas e sugestões com a origem de cada uma. |  |
+| #5-5 | Implementar ações de aceitar, editar ou rejeitar sugestões da IA. | - Tela de resultado implementada. | - Sugestão aceita incorporada ao texto da especificação; edições e rejeições persistidas. |  |
+| #5-6 | Realizar testes do fluxo de análise de rascunho. | - Fluxo completo implementado. | - Cenários validados: análise com sugestões, rascunho vazio bloqueado e rascunho completo sem lacunas. |  |
+| #6-1 | Definir prompt de reformatar requisitos para o padrão oficial. | - Regras do padrão oficial documentadas. | - Prompt criado e validado com requisitos de exemplo fora do padrão. |  |
+| #6-2 | Implementar rota de reformatar requisito na API. | - Prompt de reformatar definido. | - Endpoint retornando o requisito reformatado com título no infinitivo, user story e cenários DADO/QUANDO/ENTÃO. |  |
+| #6-3 | Implementar tela com entrada do texto original e comparação com o reformatado. | - Rota de reformatar disponível;</br> - Layout aprovado pela equipe. | - PO consegue visualizar o antes/depois e solicitar ajustes com regeneração do resultado. |  |
+| #6-4 | Realizar testes do fluxo de reformatar requisitos. | - Fluxo implementado. | - Cenários validados: requisito fora do padrão é reformatado e a estrutura segue o guia. |  |
+| #7-1 | Definir limite de similaridade para disparo do alerta. | - Base vetorial disponível. | - Limite escolhido com base em testes com requisitos reais e documentado em `/docs`. |  |
+| #7-2 | Implementar verificação de similaridade contra a base indexada durante a escrita. | - Limite de similaridade definido. | - Módulo identificando requisitos/integrações semelhantes ao texto em escrita. |  |
+| #7-3 | Exibir alertas de similaridade em tempo real na tela de escrita da especificação. | - Verificação de similaridade funcional;</br> - Comportamento aprovado pela equipe. | - Alerta visível indicando o projeto/documento semelhante, sem atrapalhar a escrita. |  |
+| #7-4 | Realizar testes do fluxo de alertas de similaridade. | - Alertas implementados. | - Cenários validados: alerta dispara para requisito semelhante e não dispara para conteúdo novo. |  |
+| #8-1 | Codificar as regras do guia oficial como checklist de validação. | - Regras do guia documentadas. | - Regras estruturais e de conteúdo implementadas como verificações automáticas. |  |
+| #8-2 | Implementar rota de validação de conformidade na API. | - Checklist codificado. | - Endpoint retornando lista objetiva de pendências ou indicação de conformidade. |  |
+| #8-3 | Implementar tela de resultado da validação no frontend. | - Rota de validação disponível;</br> - Layout aprovado pela equipe. | - Usuário visualiza o status (aprovado/pendências) com os itens pendentes listados. |  |
+| #8-4 | Realizar testes do fluxo de validação de conformidade. | - Fluxo implementado. | - Cenários validados: especificação incompleta lista pendências; completa indica conformidade. |  |
+| #9-1 | Definir formatos de exportação e biblioteca de geração de arquivos. | - Ferramentas de gestão da equipe mapeadas. | - Formatos e biblioteca escolhidos e documentados em `/docs`. |  |
+| #9-2 | Implementar geração do arquivo de exportação na API com a estrutura do guia. | - Biblioteca instalada. | - Endpoint gerando arquivo com a estrutura completa (Épico, Features, PBIs e cenários). |  |
+| #9-3 | Implementar botão de exportação e download na tela de especificação. | - Rota de exportação disponível. | - Usuário consegue acionar o download e recebe o arquivo corretamente. |  |
+| #9-4 | Realizar testes do fluxo de exportação. | - Fluxo implementado. | - Cenários validados: arquivo gerado íntegro; falha informa erro e permite nova tentativa. |  |
+| #10-1 | Adicionar estado do login (ativo, desativado) ao modelo de usuários no banco. | - Estados do login definidos pela equipe. | - Campo de estado criado e migration executada com sucesso. |  |
+| #10-2 | Implementar rotas de desativar e excluir login na API (somente administrador). | - Campo de estado disponível. | - Endpoints alterando o estado do login corretamente e restritos ao perfil administrador. |  |
+| #10-3 | Bloquear autenticação de logins desativados/excluídos preservando documentos e histórico. | - Rotas de gestão de login funcionando. | - Login revogado não consegue autenticar; projetos e documentos permanecem intactos. |  |
+| #10-4 | Implementar tela administrativa com listagem de POs e ações de desativar/excluir. | - Rotas disponíveis;</br> - Layout aprovado pela equipe. | - Administrador consegue visualizar os logins e aplicar as ações com confirmação e feedback. |  |
+| #10-5 | Realizar testes do fluxo de gestão de logins. | - Fluxo implementado. | - Cenários validados: desativar impede login; excluir preserva histórico; ação repetida informa estado. |  |
