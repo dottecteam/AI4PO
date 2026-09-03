@@ -2,19 +2,28 @@
 
 | ID | User Story | Prioridade | Estimativa | Sprint |
 | :-: | :--- | :-: | :-: | :-: |
-| #1 | Como usuário, desejo **entrar com minhas credenciais** para acessar as funcionalidades permitidas ao meu perfil. | Alta |  | 1 |
-| #2 | Como PO, desejo **gerenciar meus projetos (cadastrar e editar)** para que eles possam receber documentos e organizar a base de conhecimento. | Alta |  | 1 e 2 |
-| #3 | Como PO, desejo **enviar documentos de um projeto** para que o histórico fique disponível na base de conhecimento. | Alta |  | 1 |
-| #4 | Como PO, desejo que os **documentos enviados sejam processados e indexados** para que fiquem pesquisáveis pela IA. | Alta |  | 1 |
-| #5 | Como PO, desejo **submeter o rascunho de uma especificação** para que a IA identifique lacunas e pontos de atenção com base no histórico da empresa. | Alta |  | 2 |
-| #6 | Como PO, desejo **reformatar requisitos** para que fiquem no padrão oficial da Pro4Tech. | Alta |  | 2 |
-| #7 | Como PO, desejo **visualizar alertas de requisitos ou integrações semelhantes** durante a escrita para evitar duplicação de esforço. | Alta |  | 2 |
-| #8 | Como membro do time, desejo **validar se a documentação técnica segue o padrão oficial** para evitar perda de conhecimento quando alguém sair da equipe. | Alta |  | 2 |
-| #9 | Como PO, desejo **exportar os requisitos gerados pela IA em formatos padrão** para anexar nas ferramentas de gestão da equipe. | Alta |  | 2 |
-| #10 | Como administrador, desejo **desativar ou excluir o login de um PO** para revogar o acesso de quem não faz mais parte da equipe. | Alta |  | 2 |
-| #11 | Como PO, desejo **consultar no Chatbot como problemas técnicos foram resolvidos** em entregas passadas para não perder tempo. | Média |  | 1 e 3 |
-| #12 | Como PO, desejo **receber sugestões automáticas de documentos e referências** ao pesquisar no Chatbot para encontrar material relevante. | Média |  | 3 |
-| #13 | Como PO, desejo que o **Chatbot cite as fontes e requisitos originais** de onde retirou a resposta para auditabilidade da informação. | Média |  | 3 |
-| #14 | Como gestor, desejo **buscar profissionais por competência prática** para montar equipes com maior afinidade técnica. | Média |  | 3 |
-| #15 | Como PO, desejo **ter minhas competências e projetos vinculados ao perfil** para mapear onde está o conhecimento técnico no time. | Média |  | 3 |
-| #16 | Como líder, desejo **ter acesso ao manual e à apresentação final** para operar a solução com autonomia. | Baixa |  | 3 |
+| #1 | Como usuário, quero **entrar com minhas credenciais** para acessar o sistema de acordo com meu perfil. |  |  |  |
+| #2 | Como administrador, quero **gerenciar os usuários** para controlar quem pode acessar a plataforma. |  |  |  |
+| #3 | Como PO, quero **criar projetos** para organizar as informações de cada projeto. |  |  |  |
+| #4 | Como PO, quero **editar as informações de um projeto** para manter seus dados atualizados. |  |  |  |
+| #5 | Como PO, quero **criar uma Feature dentro de um projeto** para organizar as funcionalidades que serão trabalhadas. |  |  |  |
+| #6 | Como PO, quero **editar uma Feature** para manter suas informações atualizadas. |  |  |  |
+| #7 | Como PO, quero **criar e editar requisitos de uma Feature** para registrar o que precisa ser desenvolvido. |  |  |  |
+| #8 | Como PO, quero **enviar documentos do projeto** para disponibilizar suas informações na base de conhecimento. |  |  |  |
+| #9 | Como sistema, quero **processar os documentos enviados** para preparar suas informações para consulta. |  |  |  |
+| #10 | Como sistema, quero **indexar as informações dos documentos** para permitir que a IA encontre conteúdos relevantes. |  |  |  |
+| #11 | Como PO, quero **enviar uma especificação para análise da IA** para identificar informações que podem estar faltando. |  |  |  |
+| #12 | Como PO, quero **receber sugestões da IA sobre meus requisitos** para melhorar a qualidade da especificação. |  |  |  |
+| #13 | Como PO, quero **padronizar meus requisitos** para deixá-los de acordo com o padrão da Pro4Tech. |  |  |  |
+| #14 | Como PO, quero **encontrar requisitos semelhantes** para reutilizar conhecimentos de projetos anteriores. |  |  |  |
+| #15 | Como PO, quero **gerar uma especificação organizada a partir dos requisitos** para facilitar sua documentação. |  |  |  |
+| #16 | Como PO, quero **conversar com o chatbot** para consultar informações de projetos anteriores. |  |  |  |
+| #17 | Como PO, quero **conversar com o Chatbot sobre o conhecimento dos projetos** para encontrar informações de forma mais simples. |  |  |  |
+| #18 | Como PO, quero **ver as fontes utilizadas pelo Chatbot** para verificar de onde vieram as informações da resposta. |  |  |  |
+| #19 | Como PO, quero **receber sugestões de documentos relacionados à minha pesquisa** para encontrar informações relevantes. |  |  |  |
+| #20 | Como gestor, quero **buscar profissionais por competência** para encontrar pessoas com conhecimentos adequados para cada necessidade. |  |  |  |
+| #21 | Como profissional, quero **registrar minhas competências e projetos** para manter meu conhecimento profissional disponível na plataforma. |  |  |  |
+| #22 | Como gestor, quero **consultar o histórico dos profissionais** para conhecer suas experiências em projetos anteriores. |  |  |  |
+| #23 | Como PO, quero **exportar os requisitos e especificações** para utilizá-los em outras ferramentas da equipe. |  |  |  |
+| #24 | Como líder, quero **acessar o manual da plataforma** para entender como utilizar a solução. |  |  |  |
+| #25 | Como líder, quero **acessar a apresentação final da solução** para apresentar o funcionamento e os resultados do produto. |  |  |  |
