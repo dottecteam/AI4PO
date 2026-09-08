@@ -1,0 +1,18 @@
+services:
+  frontend:
+    build: ./web
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+
+  backend:
+    build: ./api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api:/app
