@@ -33,7 +33,7 @@ services:
   #     - ollama_data:/root/.ollama
   #   entrypoint: ["/bin/sh", "-c"]
   #   command: >
-  #     "ollama serve & sleep 3 && ollama pull llama3.1 && echo 'modelo pronto'"
+  #     "ollama serve & sleep 3 && ollama pull qwen3.5:4b && echo 'modelo pronto'"
   #   depends_on:
   #     - ollama
 
