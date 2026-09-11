@@ -22,9 +22,9 @@ function Sidebar() {
 
     //Dados em mock só até implementar o banco
     const [historico, setHistorico] = useState([
-        { id: 1, titulo: "Como usar hooks no React", data: "Hoje"},
-        { id: 2, titulo: "Erro no deploy da Vercel", data: "Ontem" },
-        { id: 3, titulo: "Dúvida sobre integração com Prisma", data: "08 Ago" },
+        { id: 1, titulo: "Funcionários que sabem React no projeto X", data: "Hoje"},
+        { id: 2, titulo: "Levantamento de requisitos para o projeto Y", data: "Ontem" },
+        { id: 3, titulo: "Dúvidas sobre o projeto Z", data: "08 Ago" },
     ])
 
     const icones = { Home, MessagesSquare, FolderOpen, Loader }
@@ -84,7 +84,7 @@ function Sidebar() {
                         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1 px-3">
                             {historico.map((conversa) => (
                                 <Link key={conversa.id} href={`/chatbot/${conversa.id}`} className="flex flex-col px-2 py-2 rounded-md hover:bg-[#212838] transition-colors duration-200">
-                                    <span className="text-[#AEC5F4] text-sm truncate">
+                                    <span className="text-white text-sm truncate">
                                         {conversa.titulo}
                                     </span>
                                     <span className="text-[#5C6B8A] text-xs">
