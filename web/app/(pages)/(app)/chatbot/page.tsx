@@ -1,10 +1,29 @@
-import { Send, Paperclip } from "lucide-react"
+import { Send, Paperclip, ChevronDown, Funnel, Dot } from "lucide-react"
 
 function ChatBot(){
     return(
         <div className="w-full h-full bg-[#010812] grid grid-rows-[10%_auto_10%]">
-            <div className="w-full h-full bg-[#010812]"></div>
+            <div className="w-full h-full bg-[#010812] flex justify-between items-center px-8">
+                <div className="w-auto h-auto flex flex-col gap-1">
+                    <h1 className="text-white font-semibold text-3xl">Assistente RAG Pro4Tech</h1>
+                    <span className="flex items-center gap-1 text-[#AEC5F4]">
+                        <div className="bg-green-500 w-2 h-2 rounded-[999px]" />
+                        Contexto ativo:
+                    </span>
+                </div>
+                
+                <div className="w-1/8 h-1/2 bg-[#212838] rounded-lg flex justify-center items-center">
+                    <button type="button" className="w-1/6 h-1/2 flex justify-center items-center rounded-lg hover:bg-[#333D55] transition duration-200">
+                        <ChevronDown size={20} color={"white"} />
+                    </button>
+                    <div className="flex flex-row gap-2 items-center">
+                        <Funnel size={24} color="white" />
+                        <h1 className="text-white select-none">Filtros de Busca</h1>
+                    </div>
+                </div>
+            </div>
 
+            {/* chat bot aqui - vou testar com o docker  */}
             <div className="w-full h-full bg-gradient-to-b from-[#010812] to-[#0C1322]"></div>
 
             <div className="w-full h-full bg-[#010812]">
