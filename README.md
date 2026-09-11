@@ -156,11 +156,19 @@ cd AI4PO
 Crie o arquivo `.env` na raiz do projeto:
 
 ```env
+
+Configurações do Banco de Dados PostgreSQL (vetorial)
 POSTGRES_DB=ai4po
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 
+URL de conexão com a Inteligência Artificial Local
 OLLAMA_URL=http://ollama:11434
+
+Configurações do Django (Backend)
+SECRET_KEY=ai4po
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
 ```
 
 > Não versione o arquivo `.env`. Utilize um `.env.example` para documentar as variáveis necessárias.
