@@ -1,4 +1,15 @@
 services:
+  db:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   frontend:
     build: ./web
     ports:
@@ -16,8 +27,11 @@ services:
       - "8000:8000"
     volumes:
       - ./api:/app
+    env_file: .env
     environment:
       - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      - db
 
   ollama:
     image: ollama/ollama:latest
@@ -39,3 +53,4 @@ services:
 
 volumes:
   ollama_data:
+  postgres_data:
