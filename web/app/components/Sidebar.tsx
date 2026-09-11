@@ -76,10 +76,12 @@ function Sidebar() {
 
             {/* Parte do historico de conversas */}
             <div className="w-full h-1/2 flex flex-col overflow-hidden">
-                {expandido ? (
-                    <div>
-                        <h1 className="select-none text-sm px-2 py-1 font-semibold text-[#EF7541] text-center">Histórico de Conversas</h1>
-                        <div className="flex-1 overflow-y-auto flex flex-col gap-1 px-3">
+                 {expandido ? (
+                    <div className="w-full h-full flex flex-col min-h-0">
+                        <h1 className="select-none text-sm px-2 py-1 font-semibold text-[#EF7541] text-center shrink-0">
+                            Histórico de Conversas
+                        </h1>
+                        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1 px-3">
                             {historico.map((conversa) => (
                                 <Link key={conversa.id} href={`/chatbot/${conversa.id}`} className="flex flex-col px-2 py-2 rounded-md hover:bg-[#212838] transition-colors duration-200">
                                     <span className="text-[#AEC5F4] text-sm truncate">
