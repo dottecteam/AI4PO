@@ -20,20 +20,33 @@ function Sidebar() {
         { icone: "CircleUserRound", label: "Meu Perfil", rota: "/perfil" },
     ]
 
+    //Dados em mock só até implementar o banco
+    const [historico, setHistorico] = useState([
+        { id: 1, titulo: "Como usar hooks no React", data: "Hoje"},
+        { id: 2, titulo: "Erro no deploy da Vercel", data: "Ontem" },
+        { id: 3, titulo: "Dúvida sobre integração com Prisma", data: "08 Ago" },
+    ])
+
     const icones = { Home, MessagesSquare, FolderOpen, Loader }
     const iconesConfig = { Settings, CircleUserRound }
 
     return (
         <div className={`bg-[#0C1322] h-full flex flex-col items-center justify-center gap-6 transition-all duration-300 ${expandido ? "w-80" : "w-20"}`}>
 
-            <div className={`flex ${expandido ? "flex-row" : "flex-col"} justify-center items-center w-full`}>
-                <Logo altura={60} largura={60} />
-                {expandido && <h1 className="text-white text-lg font-semibold">AI4PO</h1>}
-                {expandido &&
-                     <button className="w-1/2 h-10 flex justify-center items-center rounded-lg hover:bg-[#212838] duration-200 px-12" onClick={() => setExpandido(!expandido)}>
-                        <ChevronsLeft size={28} color={"#EF7541"} /> 
+            <div className={`flex items-center w-full ${expandido ? "flex-row justify-between px-4" : "flex-col justify-center"}`}>
+                <div className="flex items-center gap-2">
+                    <Logo altura={60} largura={60} />
+                    {expandido && <h1 className="text-white text-lg font-semibold">AI4PO</h1>}
+                </div>
+
+                {expandido && (
+                    <button
+                        className="w-10 h-10 flex justify-center items-center rounded-lg hover:bg-[#212838] duration-200"
+                        onClick={() => setExpandido(!expandido)}
+                    >
+                        <ChevronsLeft size={24} color={"#EF7541"} />
                     </button>
-                }
+                )}
             </div>
 
             {!expandido && <button className="w-1/2 h-10 flex justify-center items-center rounded-lg hover:bg-[#212838] duration-200" onClick={() => setExpandido(!expandido)}>
@@ -62,8 +75,26 @@ function Sidebar() {
             </div>
 
             {/* Parte do historico de conversas */}
-            <div className="w-full h-1/2 grid-rows-[20%_auto]">
-                {expandido && <div className="flex justify-center items-center"><h1 className="select-none text-sm px-2 py-1 transition-all duration-300 font-semibold text-[#EF7541]">Histórico</h1></div>}
+            <div className="w-full h-1/2 flex flex-col overflow-hidden">
+                {expandido ? (
+                    <div>
+                        <h1 className="select-none text-sm px-2 py-1 font-semibold text-[#EF7541] text-center">Histórico de Conversas</h1>
+                        <div className="flex-1 overflow-y-auto flex flex-col gap-1 px-3">
+                            {historico.map((conversa) => (
+                                <Link key={conversa.id} href={`/chatbot/${conversa.id}`} className="flex flex-col px-2 py-2 rounded-md hover:bg-[#212838] transition-colors duration-200">
+                                    <span className="text-[#AEC5F4] text-sm truncate">
+                                        {conversa.titulo}
+                                    </span>
+                                    <span className="text-[#5C6B8A] text-xs">
+                                        {conversa.data}
+                                    </span>
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div />
+                )}
             </div>
 
             <div className="w-full h-1/10 flex flex-col justify-center items-center gap-2">
