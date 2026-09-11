@@ -97,7 +97,7 @@ function Sidebar() {
                 )}
             </div>
 
-            <div className="w-full h-1/10 flex flex-col justify-center items-center gap-2">
+            <div className="w-full h-1/2 flex flex-col justify-center items-center gap-2">
                 {Configuracoes.map((paginaConfig) => {
                     const IconeConfig = iconesConfig[paginaConfig.icone as keyof typeof iconesConfig]
 
