@@ -39,11 +39,14 @@ export interface Epico {
   resultadoEsperado: string;
   criterioDeAceitacao: string[];
   features: Feature[];
+  createdAt: string;
 }
 
 export interface Projeto {
   id: string;
   titulo: string;
+  descricao: string;
+  objetivo: string;
   setor: string;
   status: ProjetoStatus;
   po: string;
