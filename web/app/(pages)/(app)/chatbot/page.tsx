@@ -1,7 +1,64 @@
-import { Send, Paperclip, ChevronDown, Funnel, Dot } from "lucide-react"
+"use client"
 
-function ChatBot(){
-    return(
+import { useState } from "react"
+import { Send, Paperclip, ChevronDown, Funnel } from "lucide-react"
+
+type Mensagem = {
+    tipo: "usuario" | "agente"
+    texto: string
+}
+
+function ChatBot() {
+    const [mensagem, setMensagem] = useState("")
+    const [mensagens, setMensagens] = useState<Mensagem[]>([])
+    const [carregando, setCarregando] = useState(false)
+
+    const enviarMensagem = async () => {
+        if (!mensagem.trim() || carregando) return
+
+        const mensagemUsuario = mensagem
+
+        setMensagens((mensagensAnteriores) => [
+            ...mensagensAnteriores,
+            { tipo: "usuario", texto: mensagemUsuario },
+        ])
+
+        setMensagem("")
+        setCarregando(true)
+
+        try {
+            const response = await fetch("http://localhost:8000/api/chat/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message: mensagemUsuario }),
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.error || "Erro ao conversar com o agente.")
+            }
+
+            setMensagens((mensagensAnteriores) => [
+                ...mensagensAnteriores,
+                { tipo: "agente", texto: data.message },
+            ])
+        } catch (error) {
+            console.error("Erro:", error)
+            setMensagens((mensagensAnteriores) => [
+                ...mensagensAnteriores,
+                { tipo: "agente", texto: "Não foi possível conectar ao agente." },
+            ])
+        } finally {
+            setCarregando(false)
+        }
+    }
+
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === "Enter") enviarMensagem()
+    }
+
+    return (
         <div className="w-full h-full bg-[#010812] grid grid-rows-[10%_1fr_10%]">
             <div className="w-full h-full bg-[#010812] flex justify-between items-center px-4 sm:px-6 lg:px-8">
                 <div className="w-auto h-auto flex flex-col gap-1 min-w-0">
@@ -13,7 +70,7 @@ function ChatBot(){
                         <span className="hidden sm:inline">Contexto ativo:</span>
                     </span>
                 </div>
-                
+
                 <div className="w-auto sm:w-1/3 lg:w-1/8 h-1/2 bg-[#212838] rounded-lg flex justify-center items-center gap-2 px-3 shrink-0">
                     <button type="button" className="flex items-center justify-center rounded-lg hover:bg-[#333D55] transition duration-200 p-1">
                         <ChevronDown size={20} color={"white"} />
@@ -27,27 +84,38 @@ function ChatBot(){
                 </div>
             </div>
 
-            {/* chat bot aqui - vou testar com o docker  */}
-            <div className="w-full h-full min-h-0 overflow-y-auto flex flex-col gap-3 px-4 sm:px-6 lg:px-8 py-4 bg-gradient-to-b from-[#010812] to-[#0C1322]"></div>
+            {/* chatbot */}
+            <div className="w-full h-full min-h-0 overflow-y-auto flex flex-col gap-3 px-4 sm:px-6 lg:px-8 py-4 bg-gradient-to-b from-[#010812] to-[#0C1322]">
+                {mensagens.map((msg, index) => (
+                    <div key={index} className={`flex ${msg.tipo === "usuario" ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[80%] rounded-lg px-4 py-3 text-sm sm:text-base ${msg.tipo === "usuario" ? "bg-[#EF7541] text-white" : "bg-[#212838] text-[#AEC5F4]"}`}>
+                            {msg.texto}
+                        </div>
+                    </div>
+                ))}
+
+                {carregando && (
+                    <div className="flex justify-start">
+                        <div className="bg-[#212838] text-[#AEC5F4] rounded-lg px-4 py-3 text-sm sm:text-base">
+                            Pensando...
+                        </div>
+                    </div>
+                )}
+            </div>
 
             <div className="w-full h-full bg-[#010812]">
                 <div className="w-full h-full bg-[#010812] flex justify-center items-center">
                     <div className="w-full h-3/5 bg-[#010812] rounded-lg flex justify-center items-center gap-3 sm:gap-6 px-4 sm:px-6 lg:px-8">
                         <div className="relative w-6/7 h-12 sm:h-14">
-                            <input
-                                type="text"
-                                placeholder="Pergunte sobre regras, decisões arquiteturais ou histórico de projetos..."
-                                className="w-full h-full bg-[#212838] outline-none rounded-lg pl-3 sm:pl-4 pr-10 sm:pr-12 text-sm sm:text-base text-white focus:ring-2 focus:ring-[#EF7541] transition duration-200"
-                            />
+                            <input type="text" value={mensagem} onChange={(event) => setMensagem(event.target.value)} onKeyDown={handleKeyDown} placeholder="Pergunte sobre regras, decisões arquiteturais ou histórico de projetos..." className="w-full h-full bg-[#212838] outline-none rounded-lg pl-3 sm:pl-4 pr-10 sm:pr-12 text-sm sm:text-base text-white focus:ring-2 focus:ring-[#EF7541] transition duration-200" />
                             <button type="button" className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 flex items-center justify-center cursor-pointer">
                                 <Paperclip size={20} className="sm:w-6 sm:h-6" color={"#AEC5F4"} />
                             </button>
                         </div>
 
-                        <button type="submit" className="w-12 h-12 sm:w-16 sm:h-14 bg-[#EF7541] rounded-lg flex items-center justify-center cursor-pointer hover:bg-[#d9653a] transition-colors duration-200 shrink-0">
+                        <button type="button" onClick={enviarMensagem} disabled={carregando || !mensagem.trim()} className="w-12 h-12 sm:w-16 sm:h-14 bg-[#EF7541] rounded-lg flex items-center justify-center cursor-pointer hover:bg-[#d9653a] transition-colors duration-200 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">
                             <Send size={22} className="sm:w-7 sm:h-7" color={"white"} />
                         </button>
-
                     </div>
                 </div>
             </div>

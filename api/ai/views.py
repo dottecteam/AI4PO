@@ -48,7 +48,7 @@ def chat(request):
                 ],
                 "stream": False
             },
-            timeout=120
+            timeout=180
         )
 
         response.raise_for_status()
