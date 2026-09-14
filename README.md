@@ -147,13 +147,13 @@ A maneira recomendada de executar o ecossistema do **AI4PO** é utilizando Docke
 ## 2. Clonar o projeto
 
 ```bash
-git clone <URL_DO_REPOSITORIO>
+git clone https://github.com/dottecteam/AI4PO.git
 cd AI4PO
 ```
 
 ## 3. Configurar as variáveis de ambiente
 
-Crie o arquivo `.env` na raiz do projeto:
+Crie o arquivo `.env` na raiz do do diretório `api`:
 
 ```env
 POSTGRES_DB=ai4po
@@ -202,6 +202,21 @@ Para encerrar os serviços:
 
 ```bash
 docker compose down
+```
+
+> **PARA UTILIZAÇÃO COM OLLAMA**
+> Os seguintes comandos podem ser úteis:
+
+Para ver quais modelos foram carregados no container:
+
+```bash
+docker exec -it ai4po-ollama-1 ollama list 
+```
+
+Para adicionar um novo modelo:
+
+```bash
+docker exec -it ai4po-ollama-1 ollama pull nome_do_modelo
 ```
 
 ---
