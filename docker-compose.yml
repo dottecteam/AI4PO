@@ -17,8 +17,11 @@ services:
     volumes:
       - ./api:/app
     environment:
-      - OLLAMA_HOST=http://ollama:11434
-
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=qwen3.5:4b
+    depends_on:
+      - ollama
+      
   ollama:
     image: ollama/ollama:latest
     ports:
