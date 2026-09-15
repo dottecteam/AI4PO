@@ -27,8 +27,10 @@ class Documento(models.Model):
     projeto = models.ForeignKey(Projeto, on_delete=models.CASCADE, related_name='documentos')
     nome = models.CharField(max_length=255)
     tipo = models.CharField(max_length=50)  # ex: pdf, txt, docx
+    # Registros criados antes da rota podem conter apenas os metadados. A rota
+    # continua exigindo o arquivo por meio do DocumentoUploadSerializer.
+    arquivo = models.FileField(upload_to='uploads/', max_length=255, blank=True)
     data = models.DateTimeField(auto_now_add=True)  # grava automaticamente a data de upload
 
     def __str__(self):
         return self.nome
-    
