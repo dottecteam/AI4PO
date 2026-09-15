@@ -9,6 +9,9 @@ import re
 from dataclasses import dataclass
 from typing import List, Optional
 
+import requests
+from decouple import config
+
 # Teto de caracteres por chunk: equilibra contexto rico vs. precisão da busca.
 TAMANHO_MAXIMO_CHUNK = 1000
 
@@ -135,3 +138,38 @@ def dividir_em_chunks(texto) -> List[Chunk]:
             chunks.append(Chunk(texto=pedaco, caminho_heading=caminho, indice=len(chunks)))
 
     return chunks
+
+
+# Ollama sobe no compose com OLLAMA_HOST; fora dele, localhost resolve.
+OLLAMA_URL = config('OLLAMA_HOST', default='http://localhost:11434')
+# Modelo de embedding: trocável por .env sem tocar no código (decisão da daily).
+MODELO_EMBEDDING = config('OLLAMA_EMBEDDING_MODEL', default='nomic-embed-text')
+# Inferência local é lenta: timeout generoso para lotes grandes.
+TEMPO_LIMITE_EMBEDDINGS = 120
+
+
+class FalhaDeEmbeddingError(Exception):
+    """Ollama fora do ar, modelo não baixado ou resposta inválida."""
+
+
+def gerar_embeddings(textos):
+    """Gera embeddings de todos os textos em uma única chamada ao Ollama.
+
+    Recebe lista de textos (use `texto_para_embedding` dos chunks) e devolve
+    lista de vetores na mesma ordem. Lista vazia devolve [] sem chamar o serviço.
+    """
+    if not textos:
+        return []
+
+    try:
+        resposta = requests.post(
+            f'{OLLAMA_URL}/api/embed',
+            json={'model': MODELO_EMBEDDING, 'input': textos},
+            timeout=TEMPO_LIMITE_EMBEDDINGS,
+        )
+        resposta.raise_for_status()
+        return resposta.json()['embeddings']
+    except (requests.RequestException, KeyError) as erro:
+        raise FalhaDeEmbeddingError(
+            f'Serviço de embeddings indisponível em {OLLAMA_URL}: {erro}'
+        ) from erro
