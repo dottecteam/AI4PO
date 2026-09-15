@@ -3,10 +3,16 @@ from django.test import TestCase
 # Create your tests here.
 
 import tempfile
-
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.test import TestCase, override_settings
+
+from ai.indexing import (
+    SOBREPOSICAO_CHUNK,
+    TAMANHO_MAXIMO_CHUNK,
+    TAMANHO_MINIMO_CHUNK,
+    dividir_em_chunks,
+)
 
 from ai.extraction import (
     ArquivoNaoEncontradoError,
@@ -57,3 +63,77 @@ class ErrosDeExtracaoTests(TestCase):
         self.addCleanup(default_storage.delete, 'uploads/falso.txt')
         with self.assertRaises(FalhaDeDecodificacaoError):
             extrair_texto('uploads/falso.txt')
+
+class ChunkingTests(TestCase):
+    """Testes de dividir_em_chunks: contrato Chunk, headings, teto e overlap."""
+
+    def test_documento_vazio_devolve_lista_vazia(self):
+        self.assertEqual(dividir_em_chunks(''), [])
+        self.assertEqual(dividir_em_chunks('   \n  '), [])
+
+    def test_texto_sem_headings_vira_chunk_unico(self):
+        texto = 'intro sem nenhum heading'
+        chunks = dividir_em_chunks(texto)
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].texto, texto)
+        self.assertIsNone(chunks[0].caminho_heading)
+        self.assertEqual(chunks[0].indice, 0)
+
+    def test_cada_heading_abre_um_chunk_com_ele_dentro(self):
+        texto = '# A\nconteudo a\n## B\nconteudo b\n### C\nconteudo c'
+        chunks = dividir_em_chunks(texto)
+        self.assertEqual(len(chunks), 3)
+        self.assertTrue(chunks[0].texto.startswith('# A'))
+        self.assertTrue(chunks[1].texto.startswith('## B'))
+        self.assertTrue(chunks[2].texto.startswith('### C'))
+        self.assertEqual(
+            [c.caminho_heading for c in chunks], ['A', 'A > B', 'A > B > C'],
+        )
+
+    def test_secao_maior_que_o_teto_e_fatiada_com_margem_de_absorcao(self):
+        secao = '## Grande\n' + ('palavra ' * 20 + '\n') * 30
+        chunks = dividir_em_chunks(secao)
+        self.assertGreater(len(chunks), 1)
+        self.assertTrue(chunks[0].texto.startswith('## Grande'))
+        for chunk in chunks:
+            self.assertLessEqual(
+                len(chunk.texto), TAMANHO_MAXIMO_CHUNK + TAMANHO_MINIMO_CHUNK,
+            )
+
+    def test_intro_e_ordem_das_secoes_preservadas(self):
+        texto = 'intro antes de tudo\n# Um\num\n# Dois\ndois'
+        chunks = dividir_em_chunks(texto)
+        self.assertEqual(
+            [(c.texto, c.caminho_heading) for c in chunks],
+            [('intro antes de tudo', None), ('# Um\num', 'Um'), ('# Dois\ndois', 'Dois')],
+        )
+        self.assertEqual([c.indice for c in chunks], [0, 1, 2])
+
+    def test_caminho_hierarquico_acumula_pais_e_reseta_irmaos(self):
+        texto = '# Seg\ntopo\n## EPIs\nconteudo\n## Luvas\noutro'
+        caminhos = [c.caminho_heading for c in dividir_em_chunks(texto)]
+        self.assertEqual(caminhos, ['Seg', 'Seg > EPIs', 'Seg > Luvas'])
+
+    def test_sobreposicao_repete_a_fronteira_entre_chunks(self):
+        texto = '## Linha\n' + 'palavra ' * 400
+        chunks = dividir_em_chunks(texto)
+        self.assertGreater(len(chunks), 1)
+        self.assertEqual(
+            chunks[0].texto[-SOBREPOSICAO_CHUNK:],
+            chunks[1].texto[:SOBREPOSICAO_CHUNK],
+        )
+
+    def test_sobra_curta_e_absorvida_sem_chunk_minusculo(self):
+        texto = 'palavra ' * 124 + 'cauda final'
+        chunks = dividir_em_chunks(texto)
+        self.assertEqual(len(chunks), 1)
+        self.assertGreater(len(chunks[0].texto), TAMANHO_MAXIMO_CHUNK)
+        self.assertTrue(chunks[0].texto.endswith('cauda final'))
+
+    def test_texto_para_embedding_inclui_caminho_quando_existe(self):
+        chunks = dividir_em_chunks('# Seg\ntopo\n## EPIs\nconteudo')
+        self.assertEqual(
+            chunks[0].texto_para_embedding, '[Seg]\n# Seg\ntopo',
+            )
+        intro = dividir_em_chunks('intro pura')[0]
+        self.assertEqual(intro.texto_para_embedding, 'intro pura')
