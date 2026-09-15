@@ -139,3 +139,23 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+
+# Media files (arquivos enviados pelos usuarios)
+# https://docs.djangoproject.com/en/6.1/topics/files/
+#
+# Task #3-4: armazenamento dos uploads da Sprint 1.
+# MEDIA_ROOT e a pasta fisica onde os arquivos enviados sao gravados
+# (padrao: api/media/). MEDIA_URL e o prefixo publico usado para servir
+# esses arquivos (ex.: /media/uploads/arquivo.txt).
+# Os valores passam pelo decouple para poderem ser sobrescritos por
+# ambiente (.env/Docker): trocar disco local por cloud storage no futuro
+# e mudanca de configuracao, nao de codigo. Decisao da Sprint 1: disco
+# local (registrada na descricao do PR da #3-4).
+# Quem precisar gravar ou ler uploads deve usar
+# django.core.files.storage.default_storage, que le estas duas
+# configuracoes -- contrato assumido pela rota de upload da #3-3.
+
+MEDIA_URL = '/media/'
+# cast=Path converte o texto vindo do .env em Path, o mesmo tipo de BASE_DIR.
+MEDIA_ROOT = config('MEDIA_ROOT', default=BASE_DIR / 'media', cast=Path)

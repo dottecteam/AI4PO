@@ -14,9 +14,18 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path
 
 urlpatterns = [
     path('admin/', admin.site.urls),
 ]
+
+# Task #3-4: em desenvolvimento (DEBUG=True), o proprio Django serve os
+# arquivos gravados em MEDIA_ROOT sob o prefixo MEDIA_URL, para o front
+# conseguir baixar os uploads. Em producao esse papel e do servidor web
+# (nginx etc.), por isso o bloco fica protegido pelo if DEBUG.
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
