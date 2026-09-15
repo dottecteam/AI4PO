@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.postgres',  # Adicione esta linha obrigatória para o HnswIndex
+    'rest_framework',
     'users',
     'projects',
     'meetings',
