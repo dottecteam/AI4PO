@@ -6,12 +6,16 @@ import tempfile
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.test import TestCase, override_settings
+from unittest.mock import patch
+import requests
 
 from ai.indexing import (
     SOBREPOSICAO_CHUNK,
     TAMANHO_MAXIMO_CHUNK,
     TAMANHO_MINIMO_CHUNK,
+    FalhaDeEmbeddingError,
     dividir_em_chunks,
+    gerar_embeddings,
 )
 
 from ai.extraction import (
@@ -137,3 +141,34 @@ class ChunkingTests(TestCase):
             )
         intro = dividir_em_chunks('intro pura')[0]
         self.assertEqual(intro.texto_para_embedding, 'intro pura')
+
+
+class EmbeddingsTests(TestCase):
+    """Testes de gerar_embeddings: batch, atalho e falha nomeada."""
+
+    def test_gera_vetores_em_uma_unica_chamada_batch(self):
+        vetores = [[0.1, 0.2], [0.3, 0.4]]
+        with patch('ai.indexing.requests.post') as post_falso:
+            post_falso.return_value.json.return_value = {'embeddings': vetores}
+            resultado = gerar_embeddings(['texto a', 'texto b'])
+        self.assertEqual(resultado, vetores)
+        post_falso.assert_called_once()
+        _, kwargs = post_falso.call_args
+        self.assertEqual(kwargs['json']['input'], ['texto a', 'texto b'])
+
+    def test_lista_vazia_devolve_lista_vazia_sem_chamar_ollama(self):
+        with patch('ai.indexing.requests.post') as post_falso:
+            self.assertEqual(gerar_embeddings([]), [])
+        post_falso.assert_not_called()
+
+    def test_ollama_fora_do_ar_vira_falha_nomeada(self):
+        with patch('ai.indexing.requests.post',
+                   side_effect=requests.exceptions.ConnectionError('recusada')):
+            with self.assertRaises(FalhaDeEmbeddingError):
+                gerar_embeddings(['texto'])
+
+    def test_resposta_sem_embeddings_vira_falha_nomeada(self):
+        with patch('ai.indexing.requests.post') as post_falso:
+            post_falso.return_value.json.return_value = {'error': 'modelo ausente'}
+            with self.assertRaises(FalhaDeEmbeddingError):
+                gerar_embeddings(['texto'])
