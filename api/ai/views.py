@@ -3,17 +3,11 @@ import os
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
+from decouple import config
 
 
-OLLAMA_URL = os.getenv(
-    "OLLAMA_URL",
-    "http://ollama:11434"
-)
-
-MODEL = os.getenv(
-    "OLLAMA_MODEL",
-    "qwen3.5:4b"
-)
+OLLAMA_URL = config("OLLAMA_URL", default="http://ollama:11434")
+MODEL = config("OLLAMA_MODEL", default="llama2.3:1b")
 
 
 @csrf_exempt
