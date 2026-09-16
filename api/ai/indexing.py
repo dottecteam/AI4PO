@@ -8,6 +8,8 @@ pgvector. Não toca em rota nem em banco por conta própria.
 import re
 from dataclasses import dataclass
 from typing import List, Optional
+from ai.extraction import extrair_texto
+from ai.models import ChunkIndexado
 
 import requests
 from decouple import config
@@ -173,3 +175,36 @@ def gerar_embeddings(textos):
         raise FalhaDeEmbeddingError(
             f'Serviço de embeddings indisponível em {OLLAMA_URL}: {erro}'
         ) from erro
+
+def indexar_documento(caminho_arquivo, projeto):
+    """Pipeline completo: extrair → fatiar → vetorizar → gravar em lote.
+
+    Recebe o caminho do arquivo no storage (contrato da #4-2) e o nome do
+    projeto; devolve a quantidade de chunks gravados. Documento sem
+    conteúdo devolve 0 sem chamar Ollama nem banco. As exceções nomeadas
+    da extração e dos embeddings sobem para a #4-4 marcar o estado de erro.
+    """
+    texto = extrair_texto(caminho_arquivo)
+    chunks = dividir_em_chunks(texto)
+    if not chunks:
+        return 0
+
+    vetores = gerar_embeddings([c.texto_para_embedding for c in chunks])
+    if len(vetores) != len(chunks):
+        raise FalhaDeEmbeddingError(
+            f'Ollama devolveu {len(vetores)} vetores para {len(chunks)} chunks.'
+        )
+
+    registros = [
+        ChunkIndexado(
+            texto=c.texto,
+            caminho_heading=c.caminho_heading,
+            indice=c.indice,
+            embedding=vetor,
+            documento_caminho=caminho_arquivo,
+            projeto=projeto,
+        )
+        for c, vetor in zip(chunks, vetores)
+    ]
+    ChunkIndexado.objects.bulk_create(registros)
+    return len(registros)
