@@ -16,6 +16,7 @@ from ai.indexing import (
     FalhaDeEmbeddingError,
     dividir_em_chunks,
     gerar_embeddings,
+    indexar_documento,
 )
 
 from ai.extraction import (
@@ -172,3 +173,38 @@ class EmbeddingsTests(TestCase):
             post_falso.return_value.json.return_value = {'error': 'modelo ausente'}
             with self.assertRaises(FalhaDeEmbeddingError):
                 gerar_embeddings(['texto'])
+            
+
+class IndexacaoDeDocumentoTests(TestCase):
+    """Testes de indexar_documento: orquestração com tudo mockado."""
+
+    def test_pipeline_completo_casa_chunks_com_vetores_e_grava_em_lote(self):
+        vetores = [[0.1] * 768, [0.2] * 768]
+        with patch('ai.indexing.extrair_texto', return_value='# A\naaa\n# B\nbbb'), \
+             patch('ai.indexing.gerar_embeddings', return_value=vetores) as gerar, \
+             patch('ai.indexing.ChunkIndexado') as modelo:
+            quantidade = indexar_documento('uploads/doc.md', 'PayCore')
+
+        self.assertEqual(quantidade, 2)
+        gerar.assert_called_once_with(['[A]\n# A\naaa', '[B]\n# B\nbbb'])
+        modelo.objects.bulk_create.assert_called_once()
+        (registros,), _ = modelo.objects.bulk_create.call_args
+        self.assertEqual(len(registros), 2)
+        primeiro = modelo.call_args_list[0].kwargs
+        self.assertEqual(primeiro['documento_caminho'], 'uploads/doc.md')
+        self.assertEqual(primeiro['projeto'], 'PayCore')
+        self.assertEqual(primeiro['embedding'], vetores[0])
+
+    def test_documento_vazio_devolve_zero_sem_chamar_ollama_nem_banco(self):
+        with patch('ai.indexing.extrair_texto', return_value=''), \
+             patch('ai.indexing.gerar_embeddings') as gerar, \
+             patch('ai.indexing.ChunkIndexado') as modelo:
+            self.assertEqual(indexar_documento('uploads/vazio.md', 'PayCore'), 0)
+        gerar.assert_not_called()
+        modelo.objects.bulk_create.assert_not_called()
+
+    def test_divergencia_entre_chunks_e_vetores_vira_falha_nomeada(self):
+        with patch('ai.indexing.extrair_texto', return_value='# A\naaa\n# B\nbbb'), \
+             patch('ai.indexing.gerar_embeddings', return_value=[[0.1] * 768]):
+            with self.assertRaises(FalhaDeEmbeddingError):
+                indexar_documento('uploads/doc.md', 'PayCore')
