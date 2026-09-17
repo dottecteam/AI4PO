@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass
 from typing import List, Optional
 from ai.extraction import extrair_texto
-from ai.models import ChunkIndexado
+from ai.models import ChunkDoc
 
 import requests
 from decouple import config
@@ -176,15 +176,16 @@ def gerar_embeddings(textos):
             f'Serviço de embeddings indisponível em {OLLAMA_URL}: {erro}'
         ) from erro
 
-def indexar_documento(caminho_arquivo, projeto):
+def indexar_documento(documento):
     """Pipeline completo: extrair → fatiar → vetorizar → gravar em lote.
 
-    Recebe o caminho do arquivo no storage (contrato da #4-2) e o nome do
-    projeto; devolve a quantidade de chunks gravados. Documento sem
-    conteúdo devolve 0 sem chamar Ollama nem banco. As exceções nomeadas
-    da extração e dos embeddings sobem para a #4-4 marcar o estado de erro.
+    Recebe a instância de Documento (a extração usa o caminho do arquivo no
+    storage e a gravação usa as FKs documento/projeto); devolve a quantidade
+    de chunks gravados. Documento sem conteúdo devolve 0 sem chamar Ollama
+    nem banco. As exceções nomeadas da extração e dos embeddings sobem para
+    a #4-4 marcar o estado de erro.
     """
-    texto = extrair_texto(caminho_arquivo)
+    texto = extrair_texto(documento.arquivo.name)
     chunks = dividir_em_chunks(texto)
     if not chunks:
         return 0
@@ -196,15 +197,15 @@ def indexar_documento(caminho_arquivo, projeto):
         )
 
     registros = [
-        ChunkIndexado(
-            texto=c.texto,
-            caminho_heading=c.caminho_heading,
-            indice=c.indice,
+        ChunkDoc(
+            # `conteudo` recebe o texto já com o caminho do heading: o modelo
+            # ainda não tem campos separados para isso (pedido à mavy).
+            conteudo=c.texto_para_embedding,
             embedding=vetor,
-            documento_caminho=caminho_arquivo,
-            projeto=projeto,
+            documento=documento,
+            projeto=documento.projeto,
         )
         for c, vetor in zip(chunks, vetores)
     ]
-    ChunkIndexado.objects.bulk_create(registros)
+    ChunkDoc.objects.bulk_create(registros)
     return len(registros)

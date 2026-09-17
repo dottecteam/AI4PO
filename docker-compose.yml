@@ -1,15 +1,4 @@
 services:
-  db:
-    image: pgvector/pgvector:pg16
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
   frontend:
     build: ./web
     ports:
@@ -30,8 +19,31 @@ services:
     env_file: .env
     environment:
       - OLLAMA_HOST=http://ollama:11434
+      # Aqui eu passo as variáveis de ambiente pro Django saber exatamente onde achar o Postgres dentro do Docker
+      - DB_NAME=ai4po_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgrespassword
+      - DB_HOST=db  # O host é 'db' porque é o nome do container do banco na mesma rede Docker
+      - DB_PORT=5432
     depends_on:
-      - db
+      - db      # Faço o backend esperar o container do banco subir antes de iniciar
+      - ollama
+
+  # BANCO DE DADOS POSTGRESQL COM PGVECTOR
+  # Aqui eu configuro o PostgreSQL usando a imagem com suporte nativo à extensão pgvector,
+  # que é fundamental para salvar os embeddings (vetores) e rodar as buscas semânticas da IA.
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: ai4po_db
+    restart: always
+    environment:
+      POSTGRES_DB: ai4po_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5432:5432"  # Exponho a porta 5432 para conseguir conectar via DBeaver/psql ou rodar comandos locais
+    volumes:
+      - pgdata:/var/lib/postgresql/data  # Garante que os dados e tabelas não sumam quando o container reiniciar
 
   ollama:
     image: ollama/ollama:latest
@@ -53,4 +65,5 @@ services:
 
 volumes:
   ollama_data:
-  postgres_data:
+  # Volume dedicado para persistir todos os dados do banco relacional e os vetores do pgvector
+  pgdata:
