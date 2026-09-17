@@ -141,6 +141,7 @@ A maneira recomendada de executar o ecossistema do **AI4PO** é utilizando Docke
 
 - **Docker** instalado
 - **Docker Compose** disponível
+- **Ollama** instalado localmente
 - Git instalado
 - Arquivo `.env` configurado
 
@@ -160,7 +161,8 @@ POSTGRES_DB=ai4po
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 
-OLLAMA_URL=http://ollama:11434
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=nome_do_modelo
 ```
 
 > Não versione o arquivo `.env`. Utilize um `.env.example` para documentar as variáveis necessárias.
@@ -184,7 +186,6 @@ Isso iniciará os principais serviços da aplicação:
 - **Frontend:** `http://localhost:3000`
 - **Backend:** `http://localhost:8000`
 - **PostgreSQL:** `localhost:5432`
-- **Ollama:** `http://localhost:11434`
 
 ## 5. Verificar os containers
 
@@ -204,19 +205,18 @@ Para encerrar os serviços:
 docker compose down
 ```
 
-> **PARA UTILIZAÇÃO COM OLLAMA**
-> Os seguintes comandos podem ser úteis:
+## 6.Utilizando o Ollama 
 
-Para ver quais modelos foram carregados no container:
+Para ver quais modelos foram carregados:
 
 ```bash
-docker exec -it ai4po-ollama-1 ollama list 
+ollama list
 ```
 
 Para adicionar um novo modelo:
 
 ```bash
-docker exec -it ai4po-ollama-1 ollama pull nome_do_modelo
+ollama pull nome_do_modelo
 ```
 
 ---
