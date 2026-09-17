@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import { Send, Paperclip, ChevronDown, Funnel } from "lucide-react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 type Mensagem = {
     tipo: "usuario" | "agente"
@@ -88,15 +90,48 @@ function ChatBot() {
             <div className="w-full h-full min-h-0 overflow-y-auto flex flex-col gap-3 px-4 sm:px-6 lg:px-8 py-4 bg-gradient-to-b from-[#010812] to-[#0C1322]">
                 {mensagens.map((msg, index) => (
                     <div key={index} className={`flex ${msg.tipo === "usuario" ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[80%] rounded-lg px-4 py-3 text-sm sm:text-base ${msg.tipo === "usuario" ? "bg-[#EF7541] text-white" : "bg-[#212838] text-[#AEC5F4]"}`}>
-                            {msg.texto}
+                        <div
+                            className={`relative max-w-[80%] rounded-lg px-4 py-3 text-sm sm:text-base ${
+                                msg.tipo === "usuario"
+                                    ? "bg-[#EF7541] text-white rounded-tr-none"
+                                    : "bg-[#212838] text-[#AEC5F4] rounded-tl-none"
+                            }`}
+                        >
+                           {/* pontinha do usuario*/}
+                            {msg.tipo === "usuario" && (
+                                <span
+                                    className="absolute bottom-full right-0 w-3 h-3 bg-[#EF7541]"
+                                    style={{ clipPath: "polygon(100% 100%, 100% 0, 0 100%)" }}
+                                />
+                            )}
+
+                            {/* pontinha do agente */}
+                            {msg.tipo === "agente" && (
+                                <span
+                                    className="absolute bottom-full left-0 w-3 h-3 bg-[#212838]"
+                                    style={{ clipPath: "polygon(0 100%, 0 0, 100% 100%)" }}
+                                />
+                            )}
+
+                            {msg.tipo === "agente" ? (
+                                <div className="markdown-mensagem prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-pre:bg-[#0C1322] prose-code:text-[#EF7541]">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {msg.texto}
+                                    </ReactMarkdown>
+                                </div>
+                            ) : (
+                                msg.texto
+                            )}
                         </div>
                     </div>
                 ))}
 
                 {carregando && (
                     <div className="flex justify-start">
-                        <div className="bg-[#212838] text-[#AEC5F4] rounded-lg px-4 py-3 text-sm sm:text-base">
+                        <div className="relative bg-[#212838] text-[#AEC5F4] rounded-lg rounded-tl-none px-4 py-3 text-sm sm:text-base">
+                            <span
+                                className="absolute -top-2 left-0 w-3 h-3 bg-[#212838]"
+                            />
                             Pensando...
                         </div>
                     </div>
