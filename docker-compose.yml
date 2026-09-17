@@ -17,26 +17,5 @@ services:
     volumes:
       - ./api:/app
     environment:
-      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_URL=http://host.docker.internal:11434
       - OLLAMA_MODEL=qwen3.5:4b
-    depends_on:
-      - ollama
-      
-  ollama:
-    image: ollama/ollama:latest
-    volumes:
-      - ollama_data:/root/.ollama
-
-  # PARTE DE CONFIGURAR A AUTOMAÇÃO DO MODELO (INICIAR COM O DOCKER COMPOSE)
-  # ollama-pull:
-  #   image: ollama/ollama:latest
-  #   volumes:
-  #     - ollama_data:/root/.ollama
-  #   entrypoint: ["/bin/sh", "-c"]
-  #   command: >
-  #     "ollama serve & sleep 3 && ollama pull qwen3.5:4b && echo 'modelo pronto'"
-  #   depends_on:
-  #     - ollama
-
-volumes:
-  ollama_data:
