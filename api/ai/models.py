@@ -1,22 +1,31 @@
 from django.db import models
-from pgvector.django import VectorField
-from pgvector.django import VectorExtension, VectorField
+# Importamos os campos específicos de vetor e o índice HNSW do pgvector
+from pgvector.django import VectorField, HnswIndex
+from projects.models import Projeto, Documento
 
-class ChunkIndexado(models.Model):
-    """Chunk vetorizado de um documento, pronto para busca semântica."""
-
-    # Dimensões do vetor: casadas com o modelo de embedding do .env
-    # (nomic-embed-text gera 768). Se a daily trocar o modelo, troca aqui.
-    DIMENSOES_EMBEDDING = 768
-
-    texto = models.TextField()
-    caminho_heading = models.CharField(max_length=255, null=True, blank=True)
-    indice = models.PositiveIntegerField()
-    embedding = VectorField(dimensions=DIMENSOES_EMBEDDING)
-    documento_caminho = models.CharField(max_length=255)
-    # Texto por enquanto: vira ForeignKey quando a #2-1 criar a entidade Projeto.
-    projeto = models.CharField(max_length=255)
-    criado_em = models.DateTimeField(auto_now_add=True)
+# Entidade "ChunkDoc" do diagrama: trechos fatiados do documento para a IA
+class ChunkDoc(models.Model):
+    # Relação 'dividido em': o trecho pertence a um documento específico
+    documento = models.ForeignKey(Documento, on_delete=models.CASCADE, related_name='chunks')
+    # #IdProjeto no diagrama: referência direta ao projeto para agilizar filtros
+    projeto = models.ForeignKey(Projeto, on_delete=models.CASCADE, related_name='chunks')
+    conteudo = models.TextField()
+    
+    # Campo vetorial que armazena o embedding (1536 dimensões é o tamanho padrão dos modelos de IA)
+    embedding = VectorField(dimensions=1536)
 
     class Meta:
-        ordering = ['documento_caminho', 'indice']
+        indexes = [
+            # Índice HNSW para acelerar drasticamente a busca por similaridade de cosseno
+            HnswIndex(
+                name='chunk_vector_cosine_idx',
+                fields=['embedding'],
+                m=16,
+                ef_construction=64,
+                opclasses=['vector_cosine_ops']
+            )
+        ]
+
+    def __str__(self):
+        return f"Chunk {self.id} - Doc {self.documento_id}"
+    
