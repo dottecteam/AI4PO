@@ -22,7 +22,8 @@ O pipeline é composto por quatro estágios soltos, cada um com testes próprios
 3. **Embeddings** (`ai.indexing.gerar_embeddings`): gera vetores em batch
    via Ollama local (endpoint `/api/embed`).
 4. **Armazenamento** (`ai.indexing.indexar_documento`): orquestra os três
-   estágios e grava em lote no modelo `ChunkIndexado` (pgvector).
+   estágios e grava em lote no modelo `ChunkDoc` (pgvector), usando as FKs
+   `documento` e `projeto` da instância recebida.
 
 ## Chunking
 
@@ -49,16 +50,31 @@ EPIs > Capacete"), permitindo desambiguar trechos de conteúdo parecido.
 
 ## Armazenamento
 
-O modelo `ChunkIndexado` (ai.models) armazena cada chunk com:
+O modelo `ChunkDoc` (`ai.models`, vindo da modelagem da feature de banco)
+armazena cada chunk com:
 
-- `texto`, `caminho_heading`, `indice` (do chunking);
-- `embedding` (VectorField do pgvector, 768 dimensões);
-- `documento_caminho`, `projeto` (metadados para filtragem e reprocessamento);
-- `criado_em` (auditoria).
+- `documento` (FK → `projects.Documento`, `CASCADE`, `related_name='chunks'`);
+- `projeto` (FK → `projects.Projeto`, `CASCADE`);
+- `conteudo` (TextField): recebe o texto do chunk **já com o caminho de
+  heading prefixado**, porque o modelo não tem campo separado para isso;
+- `embedding` (`VectorField`, declarado com 1536 dimensões);
+- índice `chunk_vector_cosine_idx` (`HnswIndex`, `m=16`,
+  `ef_construction=64`, `vector_cosine_ops`).
 
-A migration inclui `VectorExtension()` para criar a extensão `vector` no
-Postgres antes da tabela. O campo `projeto` é CharField (texto) por
-enquanto; virará ForeignKey quando a entidade Projeto (#2-1) existir.
+Cadeia de migrations do app `ai`: `0001_enable_pgvector` (`VectorExtension`),
+`0002_initial` (tabela) e `0003_initial` (FKs + índice HNSW). A cadeia foi
+aplicada com sucesso no Postgres do `docker-compose.yml`.
+
+### Pendências registradas com a autora do modelo
+
+- **Dimensão do vetor**: a coluna exige 1536, mas o `nomic-embed-text` devolve
+  768. Provado por gravação real no Postgres:
+  `DataError: expected 1536 dimensions, not 768`. Os testes não capturam isso
+  porque o Ollama é mockado. A correção (dimensão 768, ou troca do modelo de
+  embeddings) é mudança em `ai.models`, de responsabilidade da mavygarcia.
+- **Campos de rastreamento**: sem `caminho_heading`, `indice` e `criado_em`
+  não dá para deduplicar reprocessamentos nem ordenar chunks na resposta do
+  RAG; hoje tudo é achatado dentro de `conteudo`.
 
 ## Decisões
 
@@ -66,12 +82,14 @@ enquanto; virará ForeignKey quando a entidade Projeto (#2-1) existir.
   (estudo comparativo com dados reais do time). O pipeline em estágios
   soltos permite inserir um estágio de grafo depois sem reescrever o que
   existe.
-- **CharField em `projeto`**: evita acoplamento com a #2-1; metadado
-  simples primeiro, FK quando a entidade existir.
-- **Testes em SQLite**: os testes atuais são de unidade (chunking é texto
-  puro, embeddings usam mock, VectorExtension é ignorada em SQLite). A
-  validação de integração (migrate + gravação + busca vetorial real)
-  depende da virada do `DATABASES` para Postgres.
+- **Modelo de chunk único**: a pipeline foi adaptada ao `ChunkDoc` já
+  modelado pela feature de banco em vez de manter um modelo duplicado; a
+  migration própria do app `ai` foi descartada para não haver duas
+  `initial = True` concorrentes no mesmo app.
+- **Testes agora exigem Postgres**: o `HnswIndex` gera
+  `CREATE INDEX ... WITH (...)`, que o SQLite não entende. Os 21 testes de
+  unidade rodam contra o banco de teste criado pelo runner, com
+  `docker compose up -d db` de pé.
 
 ## Considerações futuras
 
