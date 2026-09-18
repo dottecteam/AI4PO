@@ -175,14 +175,17 @@ class DocumentUploadAPITests(TestCase):
             content_type="text/plain",
         )
 
-        response = self.client.post(
-            self.url,
-            {"arquivo": uploaded_file},
-            format="multipart",
-        )
+        with patch('projects.views.indexar_documento') as mock_indexar:
+            response = self.client.post(
+                self.url,
+                {"arquivo": uploaded_file},
+                format="multipart",
+            )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         documento = Documento.objects.get()
+        mock_indexar.assert_called_once_with(documento)
+        self.assertEqual(documento.estado, 'processado')
         self.assertEqual(documento.projeto, self.projeto)
         self.assertEqual(documento.nome, "requirements.txt")
         self.assertEqual(documento.tipo, "txt")
@@ -190,6 +193,7 @@ class DocumentUploadAPITests(TestCase):
         self.assertEqual(response.data["projeto"], self.projeto.pk)
         self.assertEqual(response.data["nome"], "requirements.txt")
         self.assertEqual(response.data["tipo"], "txt")
+        self.assertEqual(response.data["estado"], "processado")
         self.assertTrue(
             response.data["arquivo"].endswith("/media/uploads/requirements.txt")
         )
@@ -247,11 +251,12 @@ class DocumentUploadAPITests(TestCase):
             content_type="text/plain",
         )
 
-        response = self.client.post(
-            self.url,
-            {"arquivo": uploaded_file},
-            format="multipart",
-        )
+        with patch('projects.views.indexar_documento'):
+            response = self.client.post(
+                self.url,
+                {"arquivo": uploaded_file},
+                format="multipart",
+            )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(Documento.objects.exists())
@@ -297,3 +302,47 @@ class DocumentUploadAPITests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertFalse(Documento.objects.exists())
+
+    def test_estado_vira_erro_quando_extração_falha(self):
+        from ai.extraction import ArquivoNaoEncontradoError
+
+        uploaded_file = SimpleUploadedFile(
+            "requirements.txt",
+            b"conteudo",
+            content_type="text/plain",
+        )
+
+        with patch('ai.indexing.extrair_texto',
+                   side_effect=ArquivoNaoEncontradoError('arquivo sumiu')):
+            response = self.client.post(
+                self.url,
+                {"arquivo": uploaded_file},
+                format="multipart",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        documento = Documento.objects.get()
+        self.assertEqual(documento.estado, 'erro')
+        self.assertTrue(documento.mensagem_erro)
+
+    def test_estado_vira_erro_quando_embedding_falha(self):
+        from ai.indexing import FalhaDeEmbeddingError
+
+        uploaded_file = SimpleUploadedFile(
+            "requirements.txt",
+            b"conteudo",
+            content_type="text/plain",
+        )
+
+        with patch('ai.indexing.gerar_embeddings',
+                   side_effect=FalhaDeEmbeddingError('ollama fora')):
+            response = self.client.post(
+                self.url,
+                {"arquivo": uploaded_file},
+                format="multipart",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        documento = Documento.objects.get()
+        self.assertEqual(documento.estado, 'erro')
+        self.assertTrue(documento.mensagem_erro)
