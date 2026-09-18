@@ -3,6 +3,8 @@ from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from ai.indexing import indexar_documento, FalhaDeEmbeddingError
+from ai.extraction import FormatoNaoSuportadoError, ArquivoNaoEncontradoError, FalhaDeDecodificacaoError
 
 from .models import Projeto
 from .serializers import DocumentoUploadSerializer
@@ -53,6 +55,20 @@ class DocumentoUploadView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         documento = serializer.save()
+
+        
+        documento.estado = 'processando'
+        documento.save(update_fields=['estado'])
+
+        try:
+            indexar_documento(documento)
+            documento.estado = 'processado'
+            documento.save(update_fields=['estado'])
+        except (FormatoNaoSuportadoError, ArquivoNaoEncontradoError,
+                FalhaDeDecodificacaoError, FalhaDeEmbeddingError) as erro:
+            documento.estado = 'erro'
+            documento.mensagem_erro = str(erro)
+            documento.save(update_fields=['estado', 'mensagem_erro'])
 
         return Response(
             DocumentoUploadSerializer(

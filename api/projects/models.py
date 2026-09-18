@@ -20,7 +20,12 @@ class Projeto(models.Model):
     def __str__(self):
         return self.nome
 
-
+ESTADOS_DOCUMENTO = [
+    ('pendente', 'Pendente'),
+    ('processando', 'Processando'),
+    ('processado', 'Processado'),
+    ('erro', 'Erro'),
+]
 # Entidade "Documento" do diagrama
 class Documento(models.Model):
     # Relação 'possui' (1, 1): cada documento pertence obrigatoriamente a um Projeto
@@ -31,6 +36,8 @@ class Documento(models.Model):
     # continua exigindo o arquivo por meio do DocumentoUploadSerializer.
     arquivo = models.FileField(upload_to='uploads/', max_length=255, blank=True)
     data = models.DateTimeField(auto_now_add=True)  # grava automaticamente a data de upload
+    estado = models.CharField(max_length=20, choices=ESTADOS_DOCUMENTO, default='pendente')
+    mensagem_erro = models.TextField(blank=True, default='')
 
     def __str__(self):
         return self.nome
