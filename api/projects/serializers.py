@@ -11,8 +11,8 @@ class DocumentoUploadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Documento
-        fields = ("id", "projeto", "nome", "tipo", "arquivo", "data")
-        read_only_fields = ("id", "projeto", "nome", "tipo", "data")
+        fields = ("id", "projeto", "nome", "tipo", "arquivo", "data", "estado", "mensagem_erro")
+        read_only_fields = ("id", "projeto", "nome", "tipo", "data", "estado", "mensagem_erro")
 
     def create(self, validated_data):
         arquivo = validated_data["arquivo"]
