@@ -22,6 +22,7 @@ from django.urls import include, path
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('projects.urls')),
+    path("api/", include("ai.urls")),
 ]
 
 # Task #3-4: em desenvolvimento (DEBUG=True), o proprio Django serve os
