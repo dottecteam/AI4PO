@@ -1,18 +1,8 @@
 "use client";
 
-import { ProjetoStatus } from "@/app/types/api/projetos";
+import { ProjetoStatus } from "@/app/types/api/projeto";
+import { Projeto } from "@/app/types/api/projeto";
 import { useEffect, useRef, useState } from "react";
-
-interface Projeto {
-    id: string;
-    titulo: string;
-    descricao: string;
-    objetivo: string;
-    status: ProjetoStatus;
-    setor: string;
-    po: string;
-    createdAt: string;
-}
 
 interface ProjetoInfoProps {
     projeto: Projeto;
@@ -24,10 +14,8 @@ export default function ProjetoInfo({ projeto }: ProjetoInfoProps) {
 
     const [titulo, setTitulo] = useState(projeto.titulo);
     const [descricao, setDescricao] = useState(projeto.descricao);
-    const [objetivo, setObjetivo] = useState(projeto.objetivo);
     const [po, setPo] = useState(projeto.po);
     const [status, setStatus] = useState(projeto.status);
-    const [novoStatus, setNovoStatus] = useState<ProjetoStatus>(projeto.status);
 
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -56,7 +44,6 @@ export default function ProjetoInfo({ projeto }: ProjetoInfoProps) {
     function cancelarEdicao() {
         setTitulo(projeto.titulo);
         setDescricao(projeto.descricao);
-        setObjetivo(projeto.objetivo);
         setPo(projeto.po);
         setStatus(projeto.status);
 
@@ -68,9 +55,8 @@ export default function ProjetoInfo({ projeto }: ProjetoInfoProps) {
             id: projeto.id,
             titulo,
             descricao,
-            objetivo,
-            po,
-            status
+            status,
+            po
         });
 
         setEditando(false);
@@ -95,9 +81,15 @@ export default function ProjetoInfo({ projeto }: ProjetoInfoProps) {
                         className="w-full max-w-3xl rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-2xl font-medium outline-none focus:border-[#EF7541]"
                     />
                 ) : (
-                    <h1 className="text-2xl font-medium tracking-tight">
-                        {titulo}
-                    </h1>
+                    <div>
+                        <p className="text-xs font-semibold tracking-wider text-[#EF7541]">
+                            Projeto
+                        </p>
+
+                        <h1 className="text-2xl font-medium tracking-tight">
+                            {titulo}
+                        </h1>
+                    </div>
                 )}
 
                 {/* Menu */}
@@ -146,123 +138,88 @@ export default function ProjetoInfo({ projeto }: ProjetoInfoProps) {
             {/* Informações */}
             <div className="px-6 py-6">
 
-                <div className="mb-8 grid grid-cols-2 gap-x-8 gap-y-5 md:grid-cols-4">
+                {/* Dados principais */}
+                <div className="mb-8 grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-3">
 
                     {/* Status */}
                     <div>
-                        <span className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        <p className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
                             Status
-                        </span>
+                        </p>
 
                         {editando ? (
-
                             <select
-                                value={novoStatus}
-                                onChange={(e) => setNovoStatus(e.target.value as ProjetoStatus)}
-                                className="mt-1 w-full rounded-md border border-gray-700 bg-[#111827] px-2 py-[0.8] text-sm outline-none focus:border-[#EF7541]"
+                                value={status}
+                                onChange={(e) =>
+                                    setStatus(e.target.value as ProjetoStatus)
+                                }
+                                className="mt-1 w-full rounded-md border border-gray-700 bg-[#111827] px-2 py-2 text-sm outline-none focus:border-[#EF7541]"
                             >
                                 <option value="Rascunho">Rascunho</option>
                                 <option value="Ativo">Ativo</option>
-                                <option value="Desativo">Desativo</option>
+                                <option value="Inativo">Inativo</option>
                             </select>
-                        ) :
-                            (<span className="mt-1 inline-block text-sm text-gray-200">
+                        ) : (
+                            <p className="mt-1 inline-block text-sm text-gray-200">
                                 {status}
-                            </span>)}
-                    </div>
-
-                    {/* Setor */}
-                    <div>
-                        <span className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
-                            Setor
-                        </span>
-
-                        <span className="mt-1 block text-sm text-gray-200">
-                            {projeto.setor}
-                        </span>
+                            </p>
+                        )}
                     </div>
 
                     {/* PO */}
                     <div>
-                        <span className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        <p className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
                             PO
-                        </span>
+                        </p>
 
                         {editando ? (
                             <input
                                 type="text"
                                 value={po}
                                 onChange={(e) => setPo(e.target.value)}
-                                className="mt-1 w-full rounded-md border border-gray-700 bg-[#111827] px-2 py-1 text-sm outline-none focus:border-[#EF7541]"
+                                className="mt-1 w-full rounded-md border border-gray-700 bg-[#111827] px-2 py-2 text-sm outline-none focus:border-[#EF7541]"
                             />
                         ) : (
-                            <span className="mt-1 block text-sm text-gray-200">
+                            <p className="mt-1 block text-sm text-gray-200">
                                 {po}
-                            </span>
+                            </p>
                         )}
                     </div>
 
                     {/* Data */}
                     <div>
-                        <span className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        <p className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
                             Criado em
-                        </span>
+                        </p>
 
-                        <span className="mt-1 block text-sm text-gray-200">
-                            {projeto.createdAt}
-                        </span>
+                        <p className="mt-1 block text-sm text-gray-200">
+                            {new Date(projeto.createdAt).toLocaleDateString('pt-BR')}
+                        </p>
                     </div>
 
                 </div>
 
-                {/* Descrição e Objetivo */}
-                <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+                {/* Descrição */}
+                <section>
+                    <div className="mb-2 flex items-center border-l border-[#EF7541] pl-2">
+                        <h2 className="text-sm font-semibold uppercase tracking-wider text-[#EF7541]">
+                            Descrição
+                        </h2>
+                    </div>
 
-                    {/* Descrição */}
-                    <section>
-                        <div className="mb-2 flex items-center border-l border-[#EF7541] pl-2">
-                            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#EF7541]">
-                                Descrição
-                            </h2>
-                        </div>
-
-                        {editando ? (
-                            <textarea
-                                value={descricao}
-                                onChange={(e) => setDescricao(e.target.value)}
-                                rows={6}
-                                className="w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
-                            />
-                        ) : (
-                            <p className="px-3 text-sm leading-6 text-gray-300">
-                                {descricao}
-                            </p>
-                        )}
-                    </section>
-
-                    {/* Objetivo */}
-                    <section>
-                        <div className="mb-2 flex items-center border-l border-[#EF7541] pl-2">
-                            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#EF7541]">
-                                Objetivo
-                            </h2>
-                        </div>
-
-                        {editando ? (
-                            <textarea
-                                value={objetivo}
-                                onChange={(e) => setObjetivo(e.target.value)}
-                                rows={6}
-                                className="w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
-                            />
-                        ) : (
-                            <p className="px-3 text-sm leading-6 text-gray-300">
-                                {objetivo}
-                            </p>
-                        )}
-                    </section>
-
-                </div>
+                    {editando ? (
+                        <textarea
+                            value={descricao}
+                            onChange={(e) => setDescricao(e.target.value)}
+                            rows={6}
+                            className="w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
+                        />
+                    ) : (
+                        <p className="px-3 text-sm leading-6 text-gray-300">
+                            {descricao}
+                        </p>
+                    )}
+                </section>
 
             </div>
 

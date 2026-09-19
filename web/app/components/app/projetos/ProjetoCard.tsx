@@ -1,13 +1,12 @@
-import { ProjetoStatus } from "@/app/types/api/projetos";
+import { ProjetoStatus } from "@/app/types/api/projeto";
 import Link from "next/link";
 
-interface ProjectCardProps {
-  id: string;
-  project: string;
+interface ProjetoCardProps {
+  id: number;
+  projeto: string;
   po: string;
-  date: string;
+  createdAt: string;
   status: ProjetoStatus;
-  setor: string;
 }
 
 const statusColors: Record<ProjetoStatus, string> = {
@@ -16,16 +15,14 @@ const statusColors: Record<ProjetoStatus, string> = {
   Ativo: "bg-[#ecfda5] text-[#526300]",
 };
 
-export default function ProjectCard({ id, project, po, date, status, setor, }: ProjectCardProps) {
+export default function ProjetoCard({ id, projeto, po, createdAt, status, }: ProjetoCardProps) {
+  const dataFormatada = new Date(createdAt).toLocaleDateString('pt-BR');
+
   return (
     <Link href={`/app/projetos/${id}`} className="w-full rounded-xl bg-[#212838] p-5 border border-transparent
-      hover:bg-[#0C1322] hover:border-white hover:cursor-pointer
-    " id={id} key={id}>
+      hover:bg-[#0C1322] hover:border-white hover:cursor-pointer" key={id}>
       {/* Cabeçalho */}
       <div className="flex items-start justify-between">
-        <p className="rounded px-2 py-1 text-xs bg-[#EF7541] text-[#212838] font-bold">
-          {setor}
-        </p>
 
         <p
           className={`rounded px-2 py-1 text-xs  font-bold ${statusColors[status]}`}
@@ -36,7 +33,7 @@ export default function ProjectCard({ id, project, po, date, status, setor, }: P
 
       {/* Nome do projeto */}
       <p className="mt-2 text-base font-semibold text-white">
-        {project}
+        {projeto}
       </p>
 
       {/* Divisória */}
@@ -49,7 +46,7 @@ export default function ProjectCard({ id, project, po, date, status, setor, }: P
         </p>
 
         <p className="text-xs text-slate-400">
-          {date}
+          Criado em: {dataFormatada}
         </p>
       </div>
     </Link>
