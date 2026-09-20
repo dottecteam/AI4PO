@@ -12,10 +12,18 @@ class Projeto(models.Model):
     )
     nome = models.CharField(max_length=255)
     descricao = models.TextField()
-    objetivo = models.TextField()
     
     # Relação 'participa' (1, n): vários funcionários alocados no mesmo projeto
     funcionarios = models.ManyToManyField(Funcionario, related_name='projetos', blank=True)
+
+    class Status(models.TextChoices):
+        RASCUNHO = "Rascunho", "Rascunho"
+        INATIVO = "Inativo", "Inativo"
+        ATIVO = "Ativo", "Ativo"
+
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.RASCUNHO)
+
+    criado_em = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.nome
