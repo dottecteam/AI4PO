@@ -4,14 +4,13 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
-
-# Para Permissão
+from django.conf import settings
 from .permissions import IsAdmin
 
 # httponly: JS do navegador não acessa o cookie (proteção contra XSS)
 # secure: só envia o cookie em HTTPS (desativar só em dev local sem HTTPS)
 # samesite="Lax": mitiga CSRF básico
-COOKIE_KWARGS = dict(httponly=True, secure=False, samesite="Lax") #quando tiver o banco de dados pronto, voltar o secure= para True. Então ficará secure=True
+COOKIE_KWARGS = dict(httponly=True, secure=not settings.DEBUG, samesite="Lax") #quando tiver o banco de dados pronto, voltar o secure= para True. Então ficará secure=True
 
 
 def serialize_user(user):
