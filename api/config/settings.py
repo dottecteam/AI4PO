@@ -11,7 +11,6 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 from pathlib import Path
-
 from decouple import AutoConfig
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -25,14 +24,14 @@ config = AutoConfig(search_path=BASE_DIR)
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY')
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-chave-temporaria-dev-12345')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=False, cast=bool)
+DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
-    default='',
+    default='*',
     cast=lambda value: [item.strip() for item in value.split(',') if item.strip()],
 )
 
@@ -46,11 +45,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.postgres',  # Adicione esta linha obrigatória para o HnswIndex
     'users',
     'projects',
     'meetings',
     'backlog',
-    'ai'
+    'ai',
 ]
 
 MIDDLEWARE = [
@@ -85,11 +85,15 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
-
+# Configuração do PostgreSQL com o container Docker (ai4po_db)
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('DB_NAME', default='ai4po_db'),
+        'USER': config('DB_USER', default='postgres'),
+        'PASSWORD': config('DB_PASSWORD', default='postgrespassword'),
+        'HOST': config('DB_HOST', default='localhost'),  # 'localhost' para terminal local, 'db' dentro do container
+        'PORT': config('DB_PORT', default='5432'),
     }
 }
 
@@ -116,9 +120,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'pt-br'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Sao_Paulo'
 
 USE_I18N = True
 
@@ -139,3 +143,7 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+# Modelo de Usuário Customizado (UsuarioPO do diagrama MER)
+AUTH_USER_MODEL = 'users.UsuarioPO'
+
