@@ -7,14 +7,14 @@ export function middleware(request: NextRequest) {
 
   // Qual é a rota que o usuário está tentando acessar?
   const isLoginPage = request.nextUrl.pathname === '/';
-  
+
   // Rotas que queremos proteger (ex: /dashboard, /projetos, etc)
   // Como a raiz '/' é o login, vamos proteger tudo que NÃO for a raiz
   const isProtectedRoute = !isLoginPage;
 
   // Se a rota for protegida e NÃO tiver token, redireciona pro login (/)
-  if (isProtectedRoute && !token) {
-    return NextResponse.redirect(new URL('/', request.url));
+  if (!isLoginPage && !token) {
+    return NextResponse.redirect(new URL('/?error=unauthorized', request.url));
   }
 
   // Se o usuário TIVER o token e tentar acessar o login (/), joga ele pro painel

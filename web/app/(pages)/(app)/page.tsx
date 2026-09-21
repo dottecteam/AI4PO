@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const emailFormatado = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -15,7 +15,16 @@ export default function Login() {
   const [apiError, setApiError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // validação local
+  // Captura o parâmetro da URL caso o Middleware tenha barrado o usuário
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error") === "unauthorized") {
+      setApiError("Você precisa fazer login para acessar o painel.");
+      // Limpa a URL silenciosamente para a mensagem não ficar presa se o usuário der F5
+      window.history.replaceState(null, "", "/");
+    }
+  }, []);
+
   function validate() {
     const errors: typeof fieldErrors = {};
     if (!email) errors.email = "Informe o e-mail.";
@@ -29,12 +38,12 @@ export default function Login() {
     e.preventDefault();
     setApiError("");
     if (!validate()) return;
-
     setLoading(true);
+
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login/`, {
         method: "POST",
-        credentials: "include", // sem isso o cookie httpOnly do backend é ignorado
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, senha }),
       });
@@ -43,20 +52,32 @@ export default function Login() {
         setApiError(res.status === 401 ? "E-mail ou senha incorretos." : "Não foi possível entrar agora. Tente novamente.");
         return;
       }
-
-      router.push("/dashboard"); // ainda sem "perfil" no back, então rota fixa por enquanto
-    } catch {setApiError("Falha de conexão com o servidor.");} finally {setLoading(false);}
+      router.push("/dashboard");
+    } catch {
+      setApiError("Falha de conexão com o servidor.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <div
-      className="relative flex min-h-screen w-full items-center justify-center bg-cover bg-center px-6 py-12 sm:px-16"
+      // Adicionado bg-[#0C1322], bg-no-repeat e bg-fixed para evitar fundo branco
+      className="relative flex min-h-screen w-full items-center justify-center bg-[#0C1322] bg-cover bg-center bg-no-repeat bg-fixed px-6 py-12 sm:px-16"
       style={{ backgroundImage: "url('/imageLogin.png')" }}
     >
-      <div className="flex w-full max-w-5xl flex-col items-center gap-10 md:flex-row md:items-center md:justify-between md:gap-16">
-        {/* tirei a logo no mobile pra não ficar ruim com o formulário */}
-        <div className="hidden shrink-0 md:block">
-          <Image src="/imageLogo.png" alt="" width={521} height={521} className="h-auto w-[521px] lg:w-[521px]" priority />
+      <div className="flex w-full max-w-5xl flex-col items-center gap-10 md:flex-row md:items-center md:justify-evenly lg:gap-16">
+
+        {/* LOGO: Troquei larguras fixas por max-w dinâmicos para não quebrar no tablet */}
+        <div className="hidden w-full max-w-[300px] shrink-0 md:block lg:max-w-[500px]">
+          <Image
+            src="/imageLogo.png"
+            alt="Logo AI4PO"
+            width={521}
+            height={521}
+            className="h-auto w-full object-contain"
+            priority
+          />
         </div>
 
         <div className="w-full max-w-sm">
@@ -97,7 +118,7 @@ export default function Login() {
                   type={mostrarSenha ? "text" : "password"}
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
-                  placeholder="••••••••••••"
+                  placeholder="••••••••"
                   className="w-full rounded-md border border-[#F7C09A] bg-[#0C1322] px-4 py-3 pr-11 text-sm text-white placeholder:text-white/40 outline-none focus:border-[#EF7541]"
                 />
                 <button
@@ -112,7 +133,7 @@ export default function Login() {
               {fieldErrors.senha && <span className="text-xs text-red-400">{fieldErrors.senha}</span>}
             </div>
 
-            {apiError && <p className="text-sm text-red-400">{apiError}</p>}
+            {apiError && <p className="text-sm text-red-400 text-center font-medium">{apiError}</p>}
 
             <button
               type="submit"
@@ -122,7 +143,6 @@ export default function Login() {
               {loading ? "Entrando..." : "Entrar na Plataforma"}
             </button>
           </form>
-
           <p className="mt-6 text-center text-xs text-white/60">Acesso restrito para colaboradores da PRO4TECH.</p>
         </div>
       </div>
