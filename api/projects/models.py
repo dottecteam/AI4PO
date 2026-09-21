@@ -10,7 +10,7 @@ class Projeto(models.Model):
         on_delete=models.CASCADE, 
         related_name='projetos'
     )
-    nome = models.CharField(max_length=255)
+    titulo = models.CharField(max_length=255)
     descricao = models.TextField()
     
     # Relação 'participa' (1, n): vários funcionários alocados no mesmo projeto
