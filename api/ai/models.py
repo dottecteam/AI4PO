@@ -11,8 +11,10 @@ class ChunkDoc(models.Model):
     projeto = models.ForeignKey(Projeto, on_delete=models.CASCADE, related_name='chunks')
     conteudo = models.TextField()
     
-    # Campo vetorial que armazena o embedding (1536 dimensões é o tamanho padrão dos modelos de IA)
-    embedding = VectorField(dimensions=1536)
+    # Campo vetorial que armazena o embedding. As dimensões precisam bater com o modelo
+    # de embedding configurado em OLLAMA_EMBEDDING_MODEL (nomic-embed-text gera 768);
+    # se divergir, o Postgres rejeita a gravação com "expected N dimensions".
+    embedding = VectorField(dimensions=768)
 
     class Meta:
         indexes = [
