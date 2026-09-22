@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Epico } from "@/app/types/api/epico";
 import { EpicoContext } from "@/app/contexts/EpicoContext";
-import { epicosService } from "@/app/services/API/projeto/EpicoService";
+import { epicoService } from "@/app/services/API/projeto/EpicoService";
 
 export default function EpicoLayout({ children }: { children: React.ReactNode }) {
     const { epicoId } = useParams<{ epicoId: string }>();
@@ -12,7 +12,7 @@ export default function EpicoLayout({ children }: { children: React.ReactNode })
     const [carregando, setCarregando] = useState(true)
 
     useEffect(() => {
-        epicosService.buscarPorId(Number(epicoId))
+        epicoService.buscarPorId(Number(epicoId))
         .then(setEpico)
         .finally(() => setCarregando(false));
     }, [epicoId]);

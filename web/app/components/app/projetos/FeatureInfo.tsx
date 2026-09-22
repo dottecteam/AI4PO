@@ -3,10 +3,12 @@
 import { useEpicoAtual } from "@/app/contexts/EpicoContext";
 import { useFeatureAtual, useSetFeatureAtual } from "@/app/contexts/FeatureContext";
 import { featureService } from "@/app/services/API/projeto/FeatureService";
-import { Feature } from "@/app/types/api/feature";
+import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react";
 
 export default function FeatureInfo() {
+    const router = useRouter();
+
     const feature = useFeatureAtual()
     const setFeature = useSetFeatureAtual()
     const epico = useEpicoAtual()
@@ -78,7 +80,8 @@ export default function FeatureInfo() {
         if (!feature) return;
         try {
             setMenuAberto(false);
-            console.log("Excluir feature:", feature.id);
+            featureService.excluir(feature.id);
+            router.back();
         } catch (erro) {
             console.log("Erro ao excluir edição de feature: ", erro)
         }

@@ -2,10 +2,13 @@
 
 import { useEpicoAtual, useSetEpicoAtual } from "@/app/contexts/EpicoContext";
 import { useProjetoAtual } from "@/app/contexts/ProjetoContext";
-import { epicosService } from "@/app/services/API/projeto/EpicoService";
+import { epicoService } from "@/app/services/API/projeto/EpicoService";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation"
 
 export default function EpicoInfo() {
+    const router = useRouter();
+
     const epico = useEpicoAtual();
     const setEpico = useSetEpicoAtual();
     if (!epico) return <p className="text-white text-center">Épico não encontrado.</p>;
@@ -71,7 +74,7 @@ export default function EpicoInfo() {
 
     async function confirmarEdicao() {
         try {
-            const epicoAtualizado = await epicosService.editar(epico!.id, { titulo, descricao, objetivo, escopoMacro, resultadoEsperado, criteriosAceitacao });
+            const epicoAtualizado = await epicoService.editar(epico!.id, { titulo, descricao, objetivo, escopoMacro, resultadoEsperado, criteriosAceitacao });
             setEpico?.(epicoAtualizado)
             setEditando(false);
         } catch (erro) {
@@ -83,7 +86,8 @@ export default function EpicoInfo() {
         if (!epico) return;
         try {
             setMenuAberto(false);
-            console.log("Excluir épico:", epico.id);
+            epicoService.excluir(epico.id);
+            router.back();
         } catch (erro) {
             console.log("Erro ao excluir épico: ", erro)
         }

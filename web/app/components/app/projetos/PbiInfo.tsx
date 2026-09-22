@@ -1,11 +1,14 @@
 "use client";
 
 import { usePbiAtual, useSetPbicoAtual } from "@/app/contexts/PbiContext";
+import { pbis } from "@/app/mock/pbis";
 import { pbiService } from "@/app/services/API/projeto/PBIService";
+import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react";
 
 
 export default function PBIInfo() {
+    const router = useRouter();
     const pbi = usePbiAtual();
     const setPbi = useSetPbicoAtual();
     if (!pbi) return <p className="text-white text-center">PBI não encontrado.</p>;
@@ -75,7 +78,8 @@ export default function PBIInfo() {
         if (!pbi) return;
         try {
             setMenuAberto(false);
-            console.log("Excluir PBI:", pbi.id);
+            pbiService.excluir(pbi.id);
+            router.back();
         } catch (erro) {
             console.log("Erro ao excluir PBI: ", erro)
         }
@@ -266,9 +270,21 @@ export default function PBIInfo() {
                                                 onClick={() =>
                                                     removerCenario(index)
                                                 }
-                                                className="text-xs text-red-400 hover:text-red-300"
+                                                className="size-5 m-1 flex justify-center items-center hover:bg-black hover:opacity-70 hover:cursor-pointer rounded-full"
                                             >
-                                                Remover
+                                                <svg
+                                                    viewBox="0 0 14 15"
+                                                    className="h-4 w-4 text-[#EF7541]"
+                                                    fill="none"
+                                                >
+                                                    <path
+                                                        d="M0.8 3.467H12.8M2.133 3.467V12.8A1.333 1.333 0 0 0 3.467 14.133H10.133A1.333 1.333 0 0 0 11.467 12.8V3.467M4.133 3.467V2.133A1.333 1.333 0 0 1 5.467 0.8H8.133A1.333 1.333 0 0 1 9.467 2.133V3.467"
+                                                        stroke="currentColor"
+                                                        strokeWidth="1.6"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                    />
+                                                </svg>
                                             </button>
                                         )}
                                     </div>
@@ -357,7 +373,7 @@ export default function PBIInfo() {
                                     onClick={adicionarCenario}
                                     className="rounded-md border border-gray-700 px-4 py-2 text-sm text-gray-300 hover:bg-gray-800"
                                 >
-                                    + Adicionar cenário
+                                    Adicionar cenário
                                 </button>
                             )}
 

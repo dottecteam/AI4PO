@@ -4,14 +4,14 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Projeto } from "@/app/types/api/projeto";
 import { ProjetoContext } from "@/app/contexts/ProjetoContext";
-import { projetosService } from "@/app/services/API/projeto/ProjetoService";
+import { projetoService } from "@/app/services/API/projeto/ProjetoService";
 export default function ProjetoLayout({ children }: { children: React.ReactNode }) {
     const { id } = useParams<{ id: string }>();
     const [projeto, setProjeto] = useState<Projeto | null>(null);
     const [carregando, setCarregando] = useState(true)
 
     useEffect(() => {
-        projetosService.buscarPorId(Number(id))
+        projetoService.buscarPorId(Number(id))
             .then(setProjeto)
             .finally(() => setCarregando(false));
     }, [id]);

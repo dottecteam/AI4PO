@@ -6,8 +6,9 @@ import { pbis } from "@/app/mock/pbis";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Epico } from "@/app/types/api/epico";
-import { epicosService } from "@/app/services/API/projeto/EpicoService";
+import { epicoService } from "@/app/services/API/projeto/EpicoService";
 import { useProjetoAtual } from "@/app/contexts/ProjetoContext";
+import EpicoCadastro from "./EpicoCadastro";
 
 
 export default function TabelaEpicos() {
@@ -18,11 +19,13 @@ export default function TabelaEpicos() {
     const [carregando, setCarregando] = useState(true)
     const router = useRouter();
 
+    const [modalAberto, setModalAberto] = useState(false)
+
     useEffect(() => {
         async function carregarEpicos() {
             if (!projeto) return;
             try {
-                const dados = await epicosService.listarPorProjeto(projeto.id);
+                const dados = await epicoService.listarPorProjeto(projeto.id);
                 setEpicos(dados);
             } catch (erro) {
                 console.error("Erro ao carregar epicos:", erro);
@@ -38,7 +41,9 @@ export default function TabelaEpicos() {
     }
 
     return (
-        <DropdownSection label="Épicos">
+        <DropdownSection label="Épicos" onAdd={() => setModalAberto(true)}>
+            <EpicoCadastro aberto={modalAberto} onFechar={() => setModalAberto(false)}/>
+
             {/* Verifica se há épicos e cria a tabela */}
             {epicos.length > 0 ?
                 (<table className="w-full text-left">

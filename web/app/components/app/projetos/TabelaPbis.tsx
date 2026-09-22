@@ -1,7 +1,6 @@
 'use client';
 
 import DropdownSection from "@/app/components/app/projetos/DropdownSection";
-import { Feature } from "@/app/types/api/feature";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { pbiService } from "@/app/services/API/projeto/PBIService";
@@ -9,7 +8,7 @@ import { PBI } from "@/app/types/api/pbi";
 import { useProjetoAtual } from "@/app/contexts/ProjetoContext";
 import { useEpicoAtual } from "@/app/contexts/EpicoContext";
 import { useFeatureAtual } from "@/app/contexts/FeatureContext";
-import { usePbiAtual, useSetPbicoAtual } from "@/app/contexts/PbiContext";
+import PbiCadastro from "./PbiCadastro";
 
 
 export default function TabelaPbis() {
@@ -21,6 +20,8 @@ export default function TabelaPbis() {
     const [pbis, setPbis] = useState<PBI[]>([])
     const [carregando, setCarregando] = useState(true)
     const router = useRouter();
+
+    const [modalAberto, setModalAberto] = useState(false);
 
     useEffect(() => {
         async function carregarEpicos() {
@@ -42,7 +43,8 @@ export default function TabelaPbis() {
     }
 
     return (
-        <DropdownSection label="PBIs">
+        <DropdownSection label="PBIs" onAdd={() => setModalAberto(true)}>
+            <PbiCadastro aberto={modalAberto} onFechar={() => setModalAberto(false)} />
             {pbis.length > 0 ? (<table className="w-full text-left">
                 <thead>
                     <tr className="[&>*]:border-l-1 [&>*]:border-[#EF7541] [&>*]:py-1 [&>*]:px-2">
