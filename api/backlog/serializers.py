@@ -15,6 +15,7 @@ class EpicoSerializer(serializers.ModelSerializer):
         fields = ['id', 'titulo', 'descricao', 'objetivo', 'idProjeto', 'escopoMacro', 'resultadoEsperado', 'criteriosAceitacao', 'createdAt']
 
 
+
 class FeatureSerializer(serializers.ModelSerializer):
     # Traduz os nomes dos campos para o front
     idEpico = serializers.IntegerField(source='epico_id')

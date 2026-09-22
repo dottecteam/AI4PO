@@ -1,14 +1,18 @@
 "use client";
 
+import { useEpicoAtual, useSetEpicoAtual } from "@/app/contexts/EpicoContext";
+import { useProjetoAtual } from "@/app/contexts/ProjetoContext";
+import { epicosService } from "@/app/services/API/projeto/EpicoService";
 import { useEffect, useRef, useState } from "react";
-import { Epico } from "@/app/types/api/epico";
 
-interface EpicoInfoProps {
-    epico: Epico;
-    tituloProjeto: string;
-}
+export default function EpicoInfo() {
+    const epico = useEpicoAtual();
+    const setEpico = useSetEpicoAtual();
+    if (!epico) return <p className="text-white text-center">Épico não encontrado.</p>;
 
-export default function EpicoInfo({ epico, tituloProjeto: projetoNome }: EpicoInfoProps) {
+    const projeto = useProjetoAtual()
+    if (!projeto) <p className="text-white text-center">Projeto não encontrado.</p>;
+
     const [editando, setEditando] = useState(false);
     const [menuAberto, setMenuAberto] = useState(false);
 
@@ -50,34 +54,39 @@ export default function EpicoInfo({ epico, tituloProjeto: projetoNome }: EpicoIn
     }
 
     function cancelarEdicao() {
-        setTitulo(epico.titulo);
-        setDescricao(epico.descricao);
-        setObjetivo(epico.objetivo);
-        setEscopoMacro(epico.escopoMacro);
-        setResultadoEsperado(epico.resultadoEsperado);
-        setCriteriosAceitacao(epico.criteriosAceitacao);
+        if (!epico) return;
+        try {
+            setTitulo(epico.titulo);
+            setDescricao(epico.descricao);
+            setObjetivo(epico.objetivo);
+            setEscopoMacro(epico.escopoMacro);
+            setResultadoEsperado(epico.resultadoEsperado);
+            setCriteriosAceitacao(epico.criteriosAceitacao);
 
-        setEditando(false);
+            setEditando(false);
+        } catch (erro) {
+            console.log("Erro ao cancelar edição de épico: ", erro)
+        }
     }
 
-    function confirmarEdicao() {
-        console.log({
-            id: epico.id,
-            idProjeto: epico.idProjeto,
-            titulo,
-            descricao,
-            objetivo,
-            escopoMacro,
-            resultadoEsperado,
-            criteriosAceitacao
-        });
-
-        setEditando(false);
+    async function confirmarEdicao() {
+        try {
+            const epicoAtualizado = await epicosService.editar(epico!.id, { titulo, descricao, objetivo, escopoMacro, resultadoEsperado, criteriosAceitacao });
+            setEpico?.(epicoAtualizado)
+            setEditando(false);
+        } catch (erro) {
+            console.log("Erro ao confirmar edição de épico: ", erro)
+        }
     }
 
     function excluirEpico() {
-        setMenuAberto(false);
-        console.log("Excluir épico:", epico.id);
+        if (!epico) return;
+        try {
+            setMenuAberto(false);
+            console.log("Excluir épico:", epico.id);
+        } catch (erro) {
+            console.log("Erro ao excluir épico: ", erro)
+        }
     }
 
     return (
@@ -110,7 +119,7 @@ export default function EpicoInfo({ epico, tituloProjeto: projetoNome }: EpicoIn
                     className="relative ml-4"
                     ref={menuRef}
                 >
-                    <button
+                    {!editando && (<button
                         onClick={() => setMenuAberto(!menuAberto)}
                         className="flex size-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-800 hover:text-white"
                     >
@@ -123,7 +132,7 @@ export default function EpicoInfo({ epico, tituloProjeto: projetoNome }: EpicoIn
                             <circle cx="12" cy="12" r="1.5" />
                             <circle cx="19" cy="12" r="1.5" />
                         </svg>
-                    </button>
+                    </button>)}
 
                     {menuAberto && (
                         <div className="absolute right-0 top-11 z-20 w-48 overflow-hidden rounded-lg border border-gray-700 bg-[#111827] shadow-xl">
@@ -162,7 +171,7 @@ export default function EpicoInfo({ epico, tituloProjeto: projetoNome }: EpicoIn
                         </p>
 
                         <p className="mt-1 block text-sm text-gray-200">
-                            {projetoNome}
+                            {projeto?.titulo}
                         </p>
                     </div>
 

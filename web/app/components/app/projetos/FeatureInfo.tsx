@@ -1,14 +1,17 @@
 "use client";
 
+import { useEpicoAtual } from "@/app/contexts/EpicoContext";
+import { useFeatureAtual, useSetFeatureAtual } from "@/app/contexts/FeatureContext";
+import { featureService } from "@/app/services/API/projeto/FeatureService";
 import { Feature } from "@/app/types/api/feature";
 import { useEffect, useRef, useState } from "react";
 
-interface FeatureInfoProps {
-    feature: Feature;
-    tituloEpico: string;
-}
+export default function FeatureInfo() {
+    const feature = useFeatureAtual()
+    const setFeature = useSetFeatureAtual()
+    const epico = useEpicoAtual()
+    if (!epico || !feature) return <p className="text-white text-center">Erro ao ler dados.</p>;
 
-export default function FeatureInfo({ feature, tituloEpico }: FeatureInfoProps) {
     const [editando, setEditando] = useState(false);
     const [menuAberto, setMenuAberto] = useState(false);
 
@@ -46,30 +49,39 @@ export default function FeatureInfo({ feature, tituloEpico }: FeatureInfoProps) 
     }
 
     function cancelarEdicao() {
-        setTitulo(feature.titulo);
-        setDescricao(feature.descricao);
-        setObjetivo(feature.objetivo);
-        setCriteriosAceitacao(feature.criteriosAceitacao);
+        if (!feature) return;
 
-        setEditando(false);
+        try {
+            setTitulo(feature.titulo);
+            setDescricao(feature.descricao);
+            setObjetivo(feature.objetivo);
+            setCriteriosAceitacao(feature.criteriosAceitacao);
+
+            setEditando(false);
+        } catch (erro) {
+            console.log("Erro ao cancelar edição de feature: ", erro)
+        }
     }
 
-    function confirmarEdicao() {
-        console.log({
-            id: feature.id,
-            idEpico: feature.idEpico,
-            titulo,
-            descricao,
-            objetivo,
-            criteriosAceitacao
-        });
-
-        setEditando(false);
+    async function confirmarEdicao() {
+        if (!feature) return;
+        try {
+            const featureAtualizada = await featureService.editar(feature.id, { titulo, descricao, objetivo, criteriosAceitacao });
+            setFeature?.(featureAtualizada)
+            setEditando(false);
+        } catch (erro) {
+            console.log("Erro ao confirmar edição de feature: ", erro)
+        }
     }
 
     function excluirFeature() {
-        setMenuAberto(false);
-        console.log("Excluir feature:", feature.id);
+        if (!feature) return;
+        try {
+            setMenuAberto(false);
+            console.log("Excluir feature:", feature.id);
+        } catch (erro) {
+            console.log("Erro ao excluir edição de feature: ", erro)
+        }
     }
 
     return (
@@ -102,7 +114,7 @@ export default function FeatureInfo({ feature, tituloEpico }: FeatureInfoProps) 
                     className="relative ml-4"
                     ref={menuRef}
                 >
-                    <button
+                    {!editando && (<button
                         onClick={() => setMenuAberto(!menuAberto)}
                         className="flex size-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-800 hover:text-white"
                     >
@@ -115,7 +127,7 @@ export default function FeatureInfo({ feature, tituloEpico }: FeatureInfoProps) 
                             <circle cx="12" cy="12" r="1.5" />
                             <circle cx="19" cy="12" r="1.5" />
                         </svg>
-                    </button>
+                    </button>)}
 
                     {menuAberto && (
                         <div className="absolute right-0 top-11 z-20 w-48 overflow-hidden rounded-lg border border-gray-700 bg-[#111827] shadow-xl">
@@ -154,7 +166,7 @@ export default function FeatureInfo({ feature, tituloEpico }: FeatureInfoProps) 
                         </p>
 
                         <p className="mt-1 block text-sm text-gray-200">
-                            {tituloEpico}
+                            {epico.titulo}
                         </p>
                     </div>
 
@@ -240,7 +252,7 @@ export default function FeatureInfo({ feature, tituloEpico }: FeatureInfoProps) 
                         ) : (
                             <ul className="px-3 text-sm leading-6 text-gray-300">
                                 {criteriosAceitacao.map((criterio, index) => (
-                                        <li key={index}>{criterio}</li>
+                                    <li key={index}>{criterio}</li>
                                 ))}
                             </ul>
                         )}

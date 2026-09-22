@@ -7,3 +7,11 @@ export interface Feature {
   criteriosAceitacao: string[];
   createdAt: string;
 }
+
+export interface FeatureInput{
+  idEpico: number;
+  titulo: string;
+  descricao: string;
+  objetivo: string;
+  criteriosAceitacao: string[];
+}

@@ -1,10 +1,33 @@
 "use client";
-import { projetos } from "@/app/mock/projetos";
 
 import ProjetoCard from "@/app/components/app/projetos/ProjetoCard";
+import { projetosService } from "@/app/services/API/projeto/ProjetoService";
+import { useEffect, useState } from "react";
+import { Projeto } from "@/app/types/api/projeto";
 
 
 export default function projetosPage() {
+    const [projetos, setProjetos] = useState<Projeto[]>([]);
+    const [carregando, setCarregando] = useState(true);
+
+    useEffect(() => {
+        async function carregarProjetos() {
+            try {
+                const dados = await projetosService.listar();
+                setProjetos(dados);
+            } catch (erro) {
+                console.error("Erro ao carregar projetos:", erro);
+            } finally {
+                setCarregando(false);
+            }
+        }
+        carregarProjetos();
+    }, []);
+
+    if (carregando) {
+        return <p className="text-white text-center">Carregando...</p>;
+    }
+
     return (<main className="bg-[#010812] min-h-screen px-7 py-10 gap-7 flex flex-col">
         <header className="text-white">
             <h1 className=" text-2xl">Base de Conhecimentos RAG</h1>
@@ -41,15 +64,16 @@ export default function projetosPage() {
 
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {projetos.length > 0 ? "" : (<p className="text-white text-md text-center col-span-full">Nenhum projeto registrado.</p>)}
-            {projetos.map((projeto) => (<ProjetoCard
-                key={projeto.id}
-                id={projeto.id}
-                projeto={projeto.titulo}
-                po={projeto.po}
-                createdAt={projeto.createdAt}
-                status={projeto.status}
-            />))}
-
+            {projetos.map((projeto) => (
+                <ProjetoCard
+                    key={projeto.id}
+                    id={projeto.id}
+                    projeto={projeto.titulo}
+                    po={projeto.po}
+                    createdAt={projeto.createdAt}
+                    status={projeto.status}
+                />
+            ))}
         </section>
     </main>
     )
