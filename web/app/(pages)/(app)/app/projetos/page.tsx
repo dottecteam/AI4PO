@@ -1,19 +1,21 @@
 "use client";
 
 import ProjetoCard from "@/app/components/app/projetos/ProjetoCard";
-import { projetosService } from "@/app/services/API/projeto/ProjetoService";
+import { projetoService } from "@/app/services/API/projeto/ProjetoService";
 import { useEffect, useState } from "react";
 import { Projeto } from "@/app/types/api/projeto";
+import ProjetoCadastro from "@/app/components/app/projetos/ProjetoCadastro";
 
 
 export default function projetosPage() {
     const [projetos, setProjetos] = useState<Projeto[]>([]);
     const [carregando, setCarregando] = useState(true);
+    const [modalAberto, setModalAberto] = useState(false);
 
     useEffect(() => {
         async function carregarProjetos() {
             try {
-                const dados = await projetosService.listar();
+                const dados = await projetoService.listar();
                 setProjetos(dados);
             } catch (erro) {
                 console.error("Erro ao carregar projetos:", erro);
@@ -43,8 +45,9 @@ export default function projetosPage() {
         <div className="flex justify-between items-center border-b border-white">
             <h2 className="text-xl text-white">Projetos</h2>
 
-            {/* Botão + (SVG importado e traduzido do protótipo) */}
-            <button className="size-8 m-1 flex justify-center items-center hover:bg-black hover:opacity-70 hover:cursor-pointer rounded-full">
+            {/* Botão cadastro (SVG importado e traduzido do protótipo) */}
+            <button className="size-8 m-1 flex justify-center items-center hover:bg-black hover:opacity-70 hover:cursor-pointer rounded-full"
+            onClick={() => setModalAberto(true)}>
                 <svg
                     viewBox="0 0 24 24"
                     className="h-6 w-6 text-[#EF7541]"
@@ -58,8 +61,9 @@ export default function projetosPage() {
                         strokeLinejoin="round"
                     />
                 </svg>
-
             </button>
+
+            <ProjetoCadastro aberto={modalAberto} onFechar={() => setModalAberto(false)}/>
         </div>
 
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">

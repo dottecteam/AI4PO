@@ -1,7 +1,7 @@
 import { api } from "@/app/services/API/api";
 import { Epico, EpicoInput } from "@/app/types/api/epico";
 
-export const epicosService = {
+export const epicoService = {
     listar: () => api.get<Epico[]>("/api/epicos/"),
 
     listarPorProjeto: (idProjeto: number) =>

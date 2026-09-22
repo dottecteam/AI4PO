@@ -1,12 +1,15 @@
 "use client";
 
 import { useProjetoAtual, useSetProjetoAtual } from "@/app/contexts/ProjetoContext";
-import { projetosService } from "@/app/services/API/projeto/ProjetoService";
+import { projetoService } from "@/app/services/API/projeto/ProjetoService";
 import { ProjetoStatus } from "@/app/types/api/projeto";
+import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react";
 
 
 export default function ProjetoInfo() {
+    const router = useRouter();
+
     const projeto = useProjetoAtual();
     if (!projeto) return <p className="text-white text-center">Projeto não encontrado.</p>;
 
@@ -46,7 +49,7 @@ export default function ProjetoInfo() {
 
     async function confirmarEdicao() {
         try {
-            const projetoAtualizado = await projetosService.editar(projeto!.id, { titulo, descricao, status });
+            const projetoAtualizado = await projetoService.editar(projeto!.id, { titulo, descricao, status });
             setProjeto?.(projetoAtualizado);
             setEditando(false);
         } catch (erro) {
@@ -74,7 +77,8 @@ export default function ProjetoInfo() {
 
         try {
             setMenuAberto(false);
-            console.log("Excluir projeto:", projeto.id);
+            projetoService.excluir(projeto.id);
+            router.back();
         } catch (erro) {
             console.log("Erro ao excluir projeto: ", erro);
         }

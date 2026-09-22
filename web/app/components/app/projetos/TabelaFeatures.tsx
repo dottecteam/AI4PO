@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { Feature } from "@/app/types/api/feature";
 import { useEpicoAtual } from "@/app/contexts/EpicoContext";
 import { useProjetoAtual } from "@/app/contexts/ProjetoContext";
+import FeatureCadastro from "./FeatureCadastro";
 
 export default function TabelaFeatures() {
     const epico = useEpicoAtual()
@@ -18,6 +19,8 @@ export default function TabelaFeatures() {
     const [features, setFeatures] = useState<Feature[]>([])
     const [carregando, setCarregando] = useState(true)
     const router = useRouter();
+
+    const [modalAberto, setModalAberto] = useState(false)
 
     useEffect(() => {
         async function carregarEpicos() {
@@ -39,7 +42,8 @@ export default function TabelaFeatures() {
     }
 
     return (
-        <DropdownSection label="Features">
+        <DropdownSection label="Features" onAdd={() => setModalAberto(true)}>
+            <FeatureCadastro aberto={modalAberto} onFechar={() => setModalAberto(false)} />
             {/* Verifica se há features e cria a tabela */}
             {features.length > 0 ?
                 (<table className="w-full text-left">
@@ -56,7 +60,7 @@ export default function TabelaFeatures() {
                         (<tr key={feat.id}
                             className="[&>*]:px-2 border-b border-gray-700 hover:border-gray-500"
                             onClick={() => {
-                                if (!projeto || !epico ) return;
+                                if (!projeto || !epico) return;
                                 router.push(`/app/projetos/${projeto.id}/epicos/${epico.id}/features/${feat.id}/`)
                             }}>
                             <td>{feat.titulo}</td>
