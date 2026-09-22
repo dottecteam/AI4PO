@@ -142,8 +142,8 @@ def dividir_em_chunks(texto) -> List[Chunk]:
     return chunks
 
 
-# Ollama sobe no compose com OLLAMA_HOST; fora dele, localhost resolve.
-OLLAMA_URL = config('OLLAMA_HOST', default='http://localhost:11434')
+# mesma variável usada pela view de chat; o compose aponta para host.docker.internal porque o Ollama roda fora do Docker.
+OLLAMA_URL = config('OLLAMA_URL', default='http://localhost:11434')
 # Modelo de embedding: trocável por .env sem tocar no código (decisão da daily).
 MODELO_EMBEDDING = config('OLLAMA_EMBEDDING_MODEL', default='nomic-embed-text')
 # Inferência local é lenta: timeout generoso para lotes grandes.
