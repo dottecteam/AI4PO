@@ -14,6 +14,8 @@ from pathlib import Path
 
 from decouple import AutoConfig
 
+from datetime import timedelta
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -46,12 +48,19 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",  # habilita RefreshToken().blacklist()
+    "corsheaders",
     'users',
     'projects',
     'meetings',
     'backlog',
     'ai'
 ]
+
+SIMPLE_JWT = {
+    "USER_ID_FIELD": "id_po",
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -116,9 +125,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'pt-br'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Sao_Paulo'
 
 USE_I18N = True
 
@@ -139,3 +148,16 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+AUTH_USER_MODEL = "users.User"  # precisa estar setado ANTES da primeira migration
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": ("users.authentication.CookieJWTAuthentication",),
+}
+
+MIDDLEWARE.insert(1, "corsheaders.middleware.CorsMiddleware")  # tem que vir antes do CommonMiddleware
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+]
+CORS_ALLOW_CREDENTIALS = True  # obrigatório p/ o cookie httpOnly viajar entre as origens
