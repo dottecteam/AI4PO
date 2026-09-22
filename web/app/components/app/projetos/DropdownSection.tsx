@@ -14,7 +14,7 @@ export default function DropdownSection({ label, children, onAdd }: DropdownProp
     return (
         <div>
             <div className="flex justify-between items-center border-b border-white">
-                <h2 className="text-xl w-full hover:cursor-pointer" onClick={() => setOpen(!open)}>{label}</h2>
+                <h2 className="text-xl text-white w-full hover:cursor-pointer" onClick={() => setOpen(!open)}>{label}</h2>
                 <div>
                     <button
                         onClick={() => setOpen(!open)}
