@@ -1,14 +1,15 @@
 "use client";
 
-import { PBI } from "@/app/types/api/pbi";
+import { usePbiAtual, useSetPbicoAtual } from "@/app/contexts/PbiContext";
+import { pbiService } from "@/app/services/API/projeto/PBIService";
 import { useEffect, useRef, useState } from "react";
 
-interface PBIInfoProps {
-    pbi: PBI;
-    tituloFeature: string;
-}
 
-export default function PBIInfo({ pbi, tituloFeature }: PBIInfoProps) {
+export default function PBIInfo() {
+    const pbi = usePbiAtual();
+    const setPbi = useSetPbicoAtual();
+    if (!pbi) return <p className="text-white text-center">PBI não encontrado.</p>;
+
     const [editando, setEditando] = useState(false);
     const [menuAberto, setMenuAberto] = useState(false);
 
@@ -44,36 +45,40 @@ export default function PBIInfo({ pbi, tituloFeature }: PBIInfoProps) {
     }
 
     function cancelarEdicao() {
-        setTitulo(pbi.titulo);
-        setComo(pbi.userStory.como);
-        setQuero(pbi.userStory.quero);
-        setParaQue(pbi.userStory.paraQue);
-        setRegras(pbi.regras ?? "");
-        setCenarios(pbi.cenarios);
+        if (!pbi) return;
+        try {
+            setTitulo(pbi.titulo);
+            setComo(pbi.userStory.como);
+            setQuero(pbi.userStory.quero);
+            setParaQue(pbi.userStory.paraQue);
+            setRegras(pbi.regras ?? "");
+            setCenarios(pbi.cenarios);
 
-        setEditando(false);
+            setEditando(false);
+        } catch (erro) {
+            console.log("Erro ao cancelar edição de PBI: ", erro)
+        }
     }
 
-    function confirmarEdicao() {
-        console.log({
-            id: pbi.id,
-            idFeature: pbi.idFeature,
-            titulo,
-            userStory: {
-                como,
-                quero,
-                paraQue,
-            },
-            regras,
-            cenarios,
-        });
-
-        setEditando(false);
+    async function confirmarEdicao() {
+        if (!pbi) return;
+        try {
+            const pbiAtualizado = await pbiService.editar(pbi.id, { titulo, userStory: { como, quero, paraQue }, regras, cenarios });
+            setPbi?.(pbiAtualizado);
+            setEditando(false);
+        } catch (erro) {
+            console.log("Erro ao confirmar edição de PBI: ", erro)
+        }
     }
 
     function excluirPBI() {
-        setMenuAberto(false);
-        console.log("Excluir PBI:", pbi.id);
+        if (!pbi) return;
+        try {
+            setMenuAberto(false);
+            console.log("Excluir PBI:", pbi.id);
+        } catch (erro) {
+            console.log("Erro ao excluir PBI: ", erro)
+        }
     }
 
     function alterarCenario(
@@ -129,7 +134,7 @@ export default function PBIInfo({ pbi, tituloFeature }: PBIInfoProps) {
                 )}
 
                 <div className="relative ml-4" ref={menuRef}>
-                    <button
+                    {!editando && (<button
                         onClick={() => setMenuAberto(!menuAberto)}
                         className="flex size-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-800 hover:text-white"
                     >
@@ -142,7 +147,7 @@ export default function PBIInfo({ pbi, tituloFeature }: PBIInfoProps) {
                             <circle cx="12" cy="12" r="1.5" />
                             <circle cx="19" cy="12" r="1.5" />
                         </svg>
-                    </button>
+                    </button>)}
 
                     {menuAberto && (
                         <div className="absolute right-0 top-11 z-20 w-48 overflow-hidden rounded-lg border border-gray-700 bg-[#111827] shadow-xl">

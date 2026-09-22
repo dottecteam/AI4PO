@@ -1,20 +1,20 @@
+'use client';
+
+import Breadcrumb from "@/app/components/app/projetos/Breadcrumb";
 import ProjetoInfo from "@/app/components/app/projetos/ProjetoInfo";
 import TabelaEpicos from "@/app/components/app/projetos/TabelaEpicos";
-import { projetos } from "@/app/mock/projetos";
+import { useProjetoAtual } from "@/app/contexts/ProjetoContext";
 
-export default async function PaginaProjeto({ params }: { params: Promise<{ id: number }> }) {
-    const { id } = await params
-    const projeto = projetos.filter((proj) => proj.id == id)[0]
+export default function PaginaProjeto() {
+    const projeto = useProjetoAtual();
 
-
-    function handleAdd() {
-        console.log("adicionar");
-    }
+    if (!projeto) return <p className="text-white text-center">Projeto não encontrado.</p>;
 
     return (
-        <main className="bg-[#010812] min-h-screen px-7 pt-10 pb-20 gap-7 flex flex-col text-white">
-            <ProjetoInfo projeto={projeto}/>
-            <TabelaEpicos projeto={projeto}/>
+        <main className="bg-[#010812] min-h-screen px-7 pt-10 pb-20 gap-5 flex flex-col text-white">
+            <Breadcrumb />
+            <ProjetoInfo/>
+            <TabelaEpicos/>
         </main>
     );
 }

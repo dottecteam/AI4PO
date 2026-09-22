@@ -7,3 +7,9 @@ export interface Projeto {
   po: string;
   createdAt: string;
 }
+export interface ProjetoInput {
+  titulo: string;
+  descricao: string;
+  status: ProjetoStatus;
+  idPo: number;
+}

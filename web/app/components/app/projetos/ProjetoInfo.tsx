@@ -1,14 +1,17 @@
 "use client";
 
+import { useProjetoAtual, useSetProjetoAtual } from "@/app/contexts/ProjetoContext";
+import { projetosService } from "@/app/services/API/projeto/ProjetoService";
 import { ProjetoStatus } from "@/app/types/api/projeto";
-import { Projeto } from "@/app/types/api/projeto";
 import { useEffect, useRef, useState } from "react";
 
-interface ProjetoInfoProps {
-    projeto: Projeto;
-}
 
-export default function ProjetoInfo({ projeto }: ProjetoInfoProps) {
+export default function ProjetoInfo() {
+    const projeto = useProjetoAtual();
+    if (!projeto) return <p className="text-white text-center">Projeto não encontrado.</p>;
+
+    const setProjeto = useSetProjetoAtual();
+
     const [editando, setEditando] = useState(false);
     const [menuAberto, setMenuAberto] = useState(false);
 
@@ -41,30 +44,40 @@ export default function ProjetoInfo({ projeto }: ProjetoInfoProps) {
         setMenuAberto(false);
     }
 
-    function cancelarEdicao() {
-        setTitulo(projeto.titulo);
-        setDescricao(projeto.descricao);
-        setPo(projeto.po);
-        setStatus(projeto.status);
-
-        setEditando(false);
+    async function confirmarEdicao() {
+        try {
+            const projetoAtualizado = await projetosService.editar(projeto!.id, { titulo, descricao, status });
+            setProjeto?.(projetoAtualizado);
+            setEditando(false);
+        } catch (erro) {
+            console.error("Erro ao editar projeto:", erro);
+        }
     }
 
-    function confirmarEdicao() {
-        console.log({
-            id: projeto.id,
-            titulo,
-            descricao,
-            status,
-            po
-        });
+    function cancelarEdicao() {
+        if (!projeto) return;
 
-        setEditando(false);
+        try {
+            setTitulo(projeto.titulo);
+            setDescricao(projeto.descricao);
+            setPo(projeto.po);
+            setStatus(projeto.status);
+
+            setEditando(false);
+        } catch (erro) {
+            console.log("Erro ao cancelar edição do projeto: ", erro);
+        }
     }
 
     function excluirProjeto() {
-        setMenuAberto(false);
-        console.log("Excluir projeto:", projeto.id);
+        if (!projeto) return;
+
+        try {
+            setMenuAberto(false);
+            console.log("Excluir projeto:", projeto.id);
+        } catch (erro) {
+            console.log("Erro ao excluir projeto: ", erro);
+        }
     }
 
     return (
@@ -95,7 +108,7 @@ export default function ProjetoInfo({ projeto }: ProjetoInfoProps) {
                 {/* Menu */}
                 <div className="relative ml-4" ref={menuRef}>
 
-                    <button
+                    {!editando && (<button
                         onClick={() => setMenuAberto(!menuAberto)}
                         className="flex size-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-800 hover:text-white"
                     >
@@ -108,7 +121,7 @@ export default function ProjetoInfo({ projeto }: ProjetoInfoProps) {
                             <circle cx="12" cy="12" r="1.5" />
                             <circle cx="19" cy="12" r="1.5" />
                         </svg>
-                    </button>
+                    </button>)}
 
                     {menuAberto && (
                         <div className="absolute right-0 top-11 z-20 w-48 overflow-hidden rounded-lg border border-gray-700 bg-[#111827] shadow-xl">

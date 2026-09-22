@@ -1,24 +1,19 @@
+'use client';
+
+import Breadcrumb from "@/app/components/app/projetos/Breadcrumb";
 import FeatureInfo from "@/app/components/app/projetos/FeatureInfo";
 import TabelaPbis from "@/app/components/app/projetos/TabelaPbis";
-import { projetos } from "@/app/mock/projetos";
-import { epicos } from "@/app/mock/epicos";
-import { features } from "@/app/mock/features";
+import { useFeatureAtual } from "@/app/contexts/FeatureContext";
 
-export default async function PaginaFeature({ params }: { params: Promise<{ id: number, epicoId: number, featureId: number }> }) {
-    const { id, epicoId, featureId } = await params
-
-    const projeto = projetos.filter((proj) => proj.id == id)[0]
-    const epico = epicos.filter((epic) => epic.id == epicoId)[0]
-    const feature = features.filter((feat) => feat.id == featureId)[0]
-
-    if (!feature) {
-        return;
-    }
+export default function PaginaFeature() {
+    const feature = useFeatureAtual()
+    if (!feature) return <p className="text-white text-center">Feature não encontrada.</p>;
 
     return (
-        <main className="bg-[#010812] min-h-screen px-7 pt-10 pb-20 gap-7 flex flex-col text-white">
-            <FeatureInfo feature={feature} tituloEpico={epico.titulo}/>
-            <TabelaPbis feature={feature} epicoId={epico.id} projetoId={projeto.id}/>
+        <main className="bg-[#010812] min-h-screen px-7 pt-10 pb-20 gap-5 flex flex-col text-white">
+            <Breadcrumb />
+            <FeatureInfo />
+            <TabelaPbis />
         </main>
     )
 }
