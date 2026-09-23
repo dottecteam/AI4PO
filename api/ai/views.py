@@ -1,18 +1,24 @@
+import json
 import requests
-import os
+
+from decouple import config
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-import json
-from decouple import config
 
 
-OLLAMA_URL = config("OLLAMA_URL", default="http://ollama:11434")
-MODEL = config("OLLAMA_MODEL", default="ai4po-model")
+OLLAMA_URL = config(
+    "OLLAMA_URL",
+    default="http://host.docker.internal:11434"
+)
+
+MODEL = config(
+    "OLLAMA_MODEL",
+    default="ai4po-model"
+)
 
 
 @csrf_exempt
 def chat(request):
-
     if request.method != "POST":
         return JsonResponse(
             {"error": "Apenas POST é permitido."},
@@ -20,7 +26,11 @@ def chat(request):
         )
 
     try:
-        data = json.loads(request.body)
+        # Converte o corpo da requisição para texto UTF-8
+        body = request.body.decode("utf-8")
+
+        # Converte o JSON recebido para um dicionário Python
+        data = json.loads(body)
 
         message = data.get("message")
 
@@ -30,6 +40,7 @@ def chat(request):
                 status=400
             )
 
+        # Envia a mensagem para o Ollama
         response = requests.post(
             f"{OLLAMA_URL}/api/chat",
             json={
@@ -53,8 +64,19 @@ def chat(request):
             "message": ollama_response["message"]["content"]
         })
 
-    except requests.exceptions.RequestException as error:
+    except UnicodeDecodeError:
+        return JsonResponse(
+            {"error": "O corpo da requisição não está em UTF-8."},
+            status=400
+        )
 
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"error": "JSON inválido."},
+            status=400
+        )
+
+    except requests.exceptions.RequestException as error:
         return JsonResponse(
             {
                 "error": "Não foi possível conectar ao Ollama.",
@@ -63,9 +85,8 @@ def chat(request):
             status=500
         )
 
-    except json.JSONDecodeError:
-
+    except KeyError:
         return JsonResponse(
-            {"error": "JSON inválido."},
-            status=400
+            {"error": "Resposta inesperada do Ollama."},
+            status=500
         )
