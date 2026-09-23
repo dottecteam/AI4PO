@@ -18,14 +18,13 @@ services:
       - "8000:8000"
     volumes:
       - ./api:/app
-    env_file: ./api/.env
     environment:
       # Aqui eu passo as variáveis de ambiente pro Django saber exatamente onde achar o Postgres dentro do Docker
       - DB_NAME=${POSTGRES_DB}
       - DB_USER=${POSTGRES_USER}
       - DB_PASSWORD=${POSTGRES_PASSWORD}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
+      - DB_HOST=${POSTGRES_HOST}
+      - DB_PORT=${POSTGRES_PORT}
       # Ollama roda fora do Docker (na máquina), então o container acessa pelo host
       - OLLAMA_URL=http://host.docker.internal:11434
     depends_on:
