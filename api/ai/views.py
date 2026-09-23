@@ -7,7 +7,7 @@ from decouple import config
 
 
 OLLAMA_URL = config("OLLAMA_URL", default="http://ollama:11434")
-MODEL = config("OLLAMA_MODEL", default="qwen3.5:4b")
+MODEL = config("OLLAMA_MODEL", default="ai4po-model")
 
 
 @csrf_exempt

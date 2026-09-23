@@ -164,7 +164,7 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 
 OLLAMA_URL=http://localhost:11434
-OLLAMA_MODEL=nome_do_modelo
+OLLAMA_MODEL=ai4po-model
 ```
 
 > Não versione o arquivo `.env`. Utilize um `.env.example` para documentar as variáveis necessárias.
@@ -220,13 +220,16 @@ Para adicionar um novo modelo:
 ```bash
 ollama pull nome_do_modelo
 ```
-
----
+Para criar um modelo personalizado (sem alucinação):
+```bash
+create ai4po-model -f ./Modelfile
+```
+Obs: no arquivo /Ai4PO/Modelfile alterar o tipo de modelo que está na sua máquina (ex: llama3.2:1b)
 
 Para rodar um modelo:
 
 ```bash
-ollama run nome_do_modelo
+ollama run ai4po-model
 ```
 
 ---

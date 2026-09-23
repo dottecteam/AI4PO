@@ -27,21 +27,4 @@ services:
       - DB_PORT=${POSTGRES_PORT}
       # Ollama roda fora do Docker (na máquina), então o container acessa pelo host
       - OLLAMA_URL=http://host.docker.internal:11434
-    depends_on:
-      - db # Faço o backend esperar o container do banco subir antes de iniciar
-
-  db:
-    image: pgvector/pgvector:pg16
-    container_name: ai4po_db
-    restart: always
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432" # Exponho a porta 5432 para conseguir conectar via DBeaver/psql ou rodar comandos locais
-    volumes:
-      - pgdata:/var/lib/postgresql/data # Garante que os dados e tabelas não sumam quando o container reiniciar
-
-volumes:
-  pgdata:
+      - OLLAMA_MODEL= ai4po-model
