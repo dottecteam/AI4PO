@@ -223,6 +223,14 @@ ollama pull nome_do_modelo
 
 ---
 
+Para rodar um modelo:
+
+```bash
+ollama run nome_do_modelo
+```
+
+---
+
 # Execução Local
 
 Caso não queira utilizar Docker durante o desenvolvimento, frontend e backend também podem ser executados separadamente.
