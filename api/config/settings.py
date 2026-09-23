@@ -72,7 +72,6 @@ INSTALLED_APPS = [
     'meetings',
     'backlog',
     'ai',
-    'corsheaders',
 ]
 
 
