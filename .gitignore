@@ -4,6 +4,11 @@
 
 env/
 ENV/
+*.env
+*.env.local
+.env.local
+.env
+
 
 # =========================
 # Operating System
