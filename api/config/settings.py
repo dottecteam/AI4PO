@@ -11,32 +11,47 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 from pathlib import Path
+
 from decouple import AutoConfig
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Lê as variáveis de ambiente do arquivo api/.env (mesmo nível do manage.py).
+
+# Lê as variáveis de ambiente do arquivo api/.env
 config = AutoConfig(search_path=BASE_DIR)
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
+# ---------------------------------------------------------------------------
+# Segurança
+# ---------------------------------------------------------------------------
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-chave-temporaria-dev-12345')
+SECRET_KEY = config(
+    'SECRET_KEY',
+    default='django-insecure-chave-temporaria-dev-12345'
+)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=True, cast=bool)
+DEBUG = config(
+    'DEBUG',
+    default=True,
+    cast=bool
+)
 
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
     default='*',
-    cast=lambda value: [item.strip() for item in value.split(',') if item.strip()],
+    cast=lambda value: [
+        item.strip()
+        for item in value.split(',')
+        if item.strip()
+    ]
 )
 
 
+# ---------------------------------------------------------------------------
 # Application definition
+# ---------------------------------------------------------------------------
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -45,20 +60,48 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django.contrib.postgres',  # Adicione esta linha obrigatória para o HnswIndex
+
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
+    'corsheaders',
+    'django.contrib.postgres',
+
+    # Aplicações do projeto
     'users',
     'projects',
     'meetings',
     'backlog',
     'ai',
-    'corsheaders'
 ]
+
+
+# ---------------------------------------------------------------------------
+# Usuário customizado
+# ---------------------------------------------------------------------------
+
+AUTH_USER_MODEL = 'users.UsuarioPO'
+
+
+# ---------------------------------------------------------------------------
+# JWT
+# ---------------------------------------------------------------------------
+
+SIMPLE_JWT = {
+    "USER_ID_FIELD": "id_po",
+}
+
+
+# ---------------------------------------------------------------------------
+# Middleware
+# ---------------------------------------------------------------------------
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+
+    # Deve ficar antes do CommonMiddleware
+    'corsheaders.middleware.CorsMiddleware',
+
     'django.contrib.sessions.middleware.SessionMiddleware',
-    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -66,11 +109,28 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+
+# ---------------------------------------------------------------------------
+# CORS
+# ---------------------------------------------------------------------------
+
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
 ]
 
+CORS_ALLOW_CREDENTIALS = True
+
+
+# ---------------------------------------------------------------------------
+# URLs
+# ---------------------------------------------------------------------------
+
 ROOT_URLCONF = 'config.urls'
+
+
+# ---------------------------------------------------------------------------
+# Templates
+# ---------------------------------------------------------------------------
 
 TEMPLATES = [
     {
@@ -87,63 +147,80 @@ TEMPLATES = [
     },
 ]
 
+
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
+# ---------------------------------------------------------------------------
 # Database
-# https://docs.djangoproject.com/en/6.1/ref/settings/#databases
-# Configuração do PostgreSQL com o container Docker (ai4po_db)
+# ---------------------------------------------------------------------------
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': config('DB_NAME', default='ai4po_db'),
         'USER': config('DB_USER', default='postgres'),
         'PASSWORD': config('DB_PASSWORD', default='postgrespassword'),
-        'HOST': config('DB_HOST', default='localhost'),  # 'localhost' para terminal local, 'db' dentro do container
+        'HOST': config('DB_HOST', default='localhost'),
         'PORT': config('DB_PORT', default='5432'),
     }
 }
 
 
+# ---------------------------------------------------------------------------
 # Password validation
-# https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
+# ---------------------------------------------------------------------------
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'UserAttributeSimilarityValidator'
+        ),
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'MinimumLengthValidator'
+        ),
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'CommonPasswordValidator'
+        ),
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'NumericPasswordValidator'
+        ),
     },
 ]
 
 
+# ---------------------------------------------------------------------------
 # Internationalization
-# https://docs.djangoproject.com/en/6.1/topics/i18n/
+# ---------------------------------------------------------------------------
 
 LANGUAGE_CODE = 'pt-br'
 
 TIME_ZONE = 'America/Sao_Paulo'
 
 USE_I18N = True
-
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/6.1/howto/static-files/
+# ---------------------------------------------------------------------------
+# Static files
+# ---------------------------------------------------------------------------
 
 STATIC_URL = 'static/'
 
 
+# ---------------------------------------------------------------------------
 # Email
-# https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
+# ---------------------------------------------------------------------------
 
 MAILERS = {
     'default': {
@@ -151,24 +228,26 @@ MAILERS = {
     },
 }
 
-# Modelo de Usuário Customizado (UsuarioPO do diagrama MER)
-AUTH_USER_MODEL = 'users.UsuarioPO'
 
-# Media files (arquivos enviados pelos usuarios)
-# https://docs.djangoproject.com/en/6.1/topics/files/
-#
-# Task #3-4: armazenamento dos uploads da Sprint 1.
-# MEDIA_ROOT e a pasta fisica onde os arquivos enviados sao gravados
-# (padrao: api/media/). MEDIA_URL e o prefixo publico usado para servir
-# esses arquivos (ex.: /media/uploads/arquivo.txt).
-# Os valores passam pelo decouple para poderem ser sobrescritos por
-# ambiente (.env/Docker): trocar disco local por cloud storage no futuro
-# e mudanca de configuracao, nao de codigo. Decisao da Sprint 1: disco
-# local (registrada na descricao do PR da #3-4).
-# Quem precisar gravar ou ler uploads deve usar
-# django.core.files.storage.default_storage, que le estas duas
-# configuracoes -- contrato assumido pela rota de upload da #3-3.
+# ---------------------------------------------------------------------------
+# Media files
+# ---------------------------------------------------------------------------
 
 MEDIA_URL = '/media/'
-# cast=Path converte o texto vindo do .env em Path, o mesmo tipo de BASE_DIR.
-MEDIA_ROOT = config('MEDIA_ROOT', default=BASE_DIR / 'media', cast=Path)
+
+MEDIA_ROOT = config(
+    'MEDIA_ROOT',
+    default=BASE_DIR / 'media',
+    cast=Path
+)
+
+
+# ---------------------------------------------------------------------------
+# Django REST Framework
+# ---------------------------------------------------------------------------
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "users.authentication.CookieJWTAuthentication",
+    ),
+}

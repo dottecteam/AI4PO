@@ -2,9 +2,8 @@
 # Environment Variables
 # =========================
 
-.env
-.env.*
-!.env.example
+env/
+ENV/
 
 # =========================
 # Operating System
