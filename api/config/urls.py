@@ -21,6 +21,8 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/', include('projects.urls')),
+    path('api/', include('backlog.urls')),
     path("api/auth/", include("users.urls")),
     path('api/', include('projects.urls')),
     path("api/", include("ai.urls")),
@@ -32,3 +34,4 @@ urlpatterns = [
 # (nginx etc.), por isso o bloco fica protegido pelo if DEBUG.
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
