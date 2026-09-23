@@ -20,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # Lê as variáveis de ambiente do arquivo api/.env
-config = AutoConfig(search_path=BASE_DIR)
+config = AutoConfig(search_path=BASE_DIR.parent)
 
 
 # ---------------------------------------------------------------------------
