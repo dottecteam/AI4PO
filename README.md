@@ -141,19 +141,20 @@ A maneira recomendada de executar o ecossistema do **AI4PO** é utilizando Docke
 
 - **Docker** instalado
 - **Docker Compose** disponível
+- **Ollama** instalado localmente
 - Git instalado
 - Arquivo `.env` configurado
 
 ## 2. Clonar o projeto
 
 ```bash
-git clone <URL_DO_REPOSITORIO>
+git clone https://github.com/dottecteam/AI4PO.git
 cd AI4PO
 ```
 
 ## 3. Configurar as variáveis de ambiente
 
-Crie o arquivo `.env` na raiz do projeto:
+Crie o arquivo `.env` na raiz do diretório `api`:
 
 ```env
 
@@ -162,13 +163,8 @@ POSTGRES_DB=ai4po
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 
-URL de conexão com a Inteligência Artificial Local
-OLLAMA_URL=http://ollama:11434
-
-Configurações do Django (Backend)
-SECRET_KEY=ai4po
-DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=ai4po-model
 ```
 
 > Não versione o arquivo `.env`. Utilize um `.env.example` para documentar as variáveis necessárias.
@@ -192,7 +188,6 @@ Isso iniciará os principais serviços da aplicação:
 - **Frontend:** `http://localhost:3000`
 - **Backend:** `http://localhost:8000`
 - **PostgreSQL:** `localhost:5432`
-- **Ollama:** `http://localhost:11434`
 
 ## 5. Verificar os containers
 
@@ -210,6 +205,31 @@ Para encerrar os serviços:
 
 ```bash
 docker compose down
+```
+
+## 6.Utilizando o Ollama 
+
+Para ver quais modelos foram carregados:
+
+```bash
+ollama list
+```
+
+Para adicionar um novo modelo:
+
+```bash
+ollama pull nome_do_modelo
+```
+Para criar um modelo personalizado (sem alucinação):
+```bash
+create ai4po-model -f ./Modelfile
+```
+Obs: no arquivo /Ai4PO/Modelfile alterar o tipo de modelo que está na sua máquina (ex: llama3.2:1b)
+
+Para rodar um modelo:
+
+```bash
+ollama run ai4po-model
 ```
 
 ---
