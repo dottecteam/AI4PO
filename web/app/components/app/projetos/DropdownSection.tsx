@@ -15,26 +15,7 @@ export default function DropdownSection({ label, children, onAdd }: DropdownProp
         <div>
             <div className="flex justify-between items-center border-b border-white">
                 <h2 className="text-xl text-white w-full hover:cursor-pointer" onClick={() => setOpen(!open)}>{label}</h2>
-                <div>
-                    <button
-                        onClick={() => setOpen(!open)}
-                        className="size-8 m-1 flex justify-center items-center hover:bg-black hover:opacity-70 hover:cursor-pointer rounded-full"
-                    >
-                        <svg
-                            viewBox="0 0 16 10"
-                            className={`w-4 h-2.5 text-[#EF7541] transition-transform ${open ? "rotate-180" : ""}`}
-                            fill="none"
-                        >
-                            <path
-                                d="M14.5 8L8 1.5L1.5 8"
-                                stroke="currentColor"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            />
-                        </svg>
-                    </button>
-
+                <div className="flex">
                     {onAdd && (
                         <button
                             onClick={onAdd}
@@ -56,6 +37,25 @@ export default function DropdownSection({ label, children, onAdd }: DropdownProp
                         </button>
                     )}
                 </div>
+
+                <button
+                    onClick={() => setOpen(!open)}
+                    className="size-8 m-1 flex justify-center items-center hover:bg-black hover:opacity-70 hover:cursor-pointer rounded-full"
+                >
+                    <svg
+                        viewBox="0 0 16 10"
+                        className={`w-4 h-2.5 text-[#EF7541] transition-transform ${open ? "rotate-180" : ""}`}
+                        fill="none"
+                    >
+                        <path
+                            d="M14.5 8L8 1.5L1.5 8"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        />
+                    </svg>
+                </button>
 
             </div>
 

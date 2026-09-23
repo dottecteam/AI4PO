@@ -8,6 +8,8 @@ interface DocumentoCardProps {
 }
 
 export default function DocumentoCard({ documento, }: DocumentoCardProps) {
+    const dataFormatada = new Date(documento.data).toLocaleDateString('pt-BR');
+
     const [menuAberto, setMenuAberto] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -75,7 +77,7 @@ export default function DocumentoCard({ documento, }: DocumentoCardProps) {
             <p className="w-full py-1 text-lg text-white border-b-1 border-[#F7C09A]">{documento.nome}</p>
 
             {/* data */}
-            <p className="text-sm text-white px-3 pt-2">{documento.data}</p>
+            <p className="text-sm text-white px-3 pt-2">{dataFormatada}</p>
         </div>
     )
 }

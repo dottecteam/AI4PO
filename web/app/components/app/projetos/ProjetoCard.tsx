@@ -17,6 +17,7 @@ const statusColors: Record<ProjetoStatus, string> = {
 
 export default function ProjetoCard({ id, projeto, po, createdAt, status, }: ProjetoCardProps) {
   const dataFormatada = new Date(createdAt).toLocaleDateString('pt-BR');
+  console.log("Data: ", createdAt, "|||||")
 
   return (
     <Link href={`/app/projetos/${id}`} className="w-full rounded-xl bg-[#212838] p-5 border border-transparent
