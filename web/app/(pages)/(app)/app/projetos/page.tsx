@@ -9,7 +9,6 @@ import useDebounce from "@/app/hooks/useDebounce";
 import { usePesquisaEFiltro } from "@/app/hooks/usePesquisaEFiltro";
 import Searchbar from "@/app/components/app/Searchbar";
 import MenuFiltro from "@/app/components/app/MenuFiltro";
-import DropdownSection from "@/app/components/app/projetos/DropdownSection";
 import FiltroData from "@/app/components/app/FiltroData";
 
 export default function projetosPage() {
@@ -22,7 +21,7 @@ export default function projetosPage() {
     const termoComDebounce = useDebounce(termo, 300);
 
     // Para usar nos filtros
-    const statusUnicos = Array.from(new Set(projetos.map((p) => p.status)));
+    const statusUnicos = ["Ativo", "Rascunho", "Inativo"];
     const opcoesStatus: OpcaoFiltro[] = statusUnicos.map((s) => ({ rotulo: s, valor: s }));
 
 
