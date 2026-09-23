@@ -2,8 +2,18 @@ import json
 import requests
 
 from decouple import config
+from django.core.files.storage import default_storage
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+
+from ai.chat_com_documento import responder_com_documento
+from ai.extraction import (
+    ArquivoNaoEncontradoError,
+    FalhaDeDecodificacaoError,
+    FormatoNaoSuportadoError,
+    extrair_texto,
+)
+from ai.indexing import FalhaDeEmbeddingError
 
 
 OLLAMA_URL = config(
@@ -26,13 +36,14 @@ def chat(request):
         )
 
     try:
-        # Converte o corpo da requisição para texto UTF-8
-        body = request.body.decode("utf-8")
-
-        # Converte o JSON recebido para um dicionário Python
-        data = json.loads(body)
-
-        message = data.get("message")
+        # Se vier um arquivo junto (multipart/form-data), a mensagem
+        # também chega em request.POST em vez de no corpo JSON puro.
+        if request.FILES:
+            message = request.POST.get("message")
+        else:
+            body = request.body.decode("utf-8")
+            data = json.loads(body)
+            message = data.get("message")
 
         if not message:
             return JsonResponse(
@@ -40,7 +51,33 @@ def chat(request):
                 status=400
             )
 
-        # Envia a mensagem para o Ollama
+        prompt_final = message
+        caminho_temporario = None
+
+        if request.FILES:
+            arquivo = request.FILES.get("arquivo")
+
+            if arquivo is None:
+                return JsonResponse(
+                    {"error": "Campo 'arquivo' não encontrado no envio."},
+                    status=400
+                )
+
+            # Salvo em pasta separada (não em uploads/, que é onde os
+            # documentos indexados de verdade ficam) e apago no final:
+            # aqui é só um repouso temporário pra reaproveitar
+            # extrair_texto, sem virar Documento nem ChunkDoc no banco.
+            caminho_temporario = default_storage.save(
+                f"temp/{arquivo.name}", arquivo
+            )
+
+            try:
+                texto_doc = extrair_texto(caminho_temporario)
+                prompt_final = responder_com_documento(texto_doc, message)
+            finally:
+                default_storage.delete(caminho_temporario)
+
+        # Envia a mensagem (ou o prompt com contexto do documento) para o Ollama
         response = requests.post(
             f"{OLLAMA_URL}/api/chat",
             json={
@@ -48,7 +85,7 @@ def chat(request):
                 "messages": [
                     {
                         "role": "user",
-                        "content": message
+                        "content": prompt_final
                     }
                 ],
                 "stream": False
@@ -74,6 +111,21 @@ def chat(request):
         return JsonResponse(
             {"error": "JSON inválido."},
             status=400
+        )
+
+    except FormatoNaoSuportadoError as error:
+        return JsonResponse({"error": str(error)}, status=400)
+
+    except (ArquivoNaoEncontradoError, FalhaDeDecodificacaoError) as error:
+        return JsonResponse({"error": str(error)}, status=400)
+
+    except FalhaDeEmbeddingError as error:
+        return JsonResponse(
+            {
+                "error": "Não foi possível gerar os embeddings do documento.",
+                "details": str(error)
+            },
+            status=500
         )
 
     except requests.exceptions.RequestException as error:

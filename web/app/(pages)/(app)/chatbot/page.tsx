@@ -11,6 +11,7 @@ const tamanho_max = 10 * 1024 * 1024
 type Mensagem = {
   tipo: "usuario" | "agente" | "anexo"
   texto: string
+  anexo?: string
 }
 
 function ChatBot() {
@@ -55,30 +56,59 @@ function ChatBot() {
   const enviarMensagem = async () => {
     if ((!mensagem.trim() && anexos.length === 0) || carregando) return
 
-    // por enquanto, só mostra o anexo na conversa, até a gente definir o que vamos fazer
-    for (const arquivo of anexos) {
-      setMensagens((prev) => [...prev, { tipo: "anexo", texto: arquivo.name }])
+    if (anexos.length > 1) {
+      alert("Por enquanto só é possível enviar um documento por mensagem.")
+      return
     }
+
+    const arquivoParaEnvio = anexos[0]
+    const mensagemUsuario = mensagem
     setAnexos([])
 
-    if (!mensagem.trim()) return
-
-    const mensagemUsuario = mensagem
+    // mensagem só de anexo, sem texto: mostra o card visualmente e para por aqui,
+    // sem chamar o backend (não faz sentido perguntar "nada" pro modelo)
+    if (!mensagemUsuario.trim()) {
+      if (arquivoParaEnvio) {
+        setMensagens((prev) => [
+          ...prev,
+          { tipo: "usuario", texto: "", anexo: arquivoParaEnvio.name },
+        ])
+      }
+      return
+    }
 
     setMensagens((prev) => [
       ...prev,
-      { tipo: "usuario", texto: mensagemUsuario },
+      {
+        tipo: "usuario",
+        texto: mensagemUsuario,
+        anexo: arquivoParaEnvio?.name,
+      },
     ])
 
     setMensagem("")
     setCarregando(true)
 
     try {
-      const response = await fetch("http://localhost:8000/api/chat/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: mensagemUsuario }),
-      })
+      let response
+
+      if (arquivoParaEnvio) {
+        const formData = new FormData()
+        formData.append("message", mensagemUsuario)
+        formData.append("arquivo", arquivoParaEnvio)
+
+        response = await fetch("http://localhost:8000/api/chat/", {
+          method: "POST",
+          body: formData,
+        })
+      } else {
+        response = await fetch("http://localhost:8000/api/chat/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: mensagemUsuario }),
+        })
+      }
+
       const data = await response.json()
       if (!response.ok) {
         throw new Error(data.error || "Erro ao conversar com o agente.")
@@ -130,46 +160,42 @@ function ChatBot() {
 
       {/* chatbot */}
       <div className="w-full h-full min-h-0 overflow-y-auto flex flex-col gap-3 px-4 sm:px-6 lg:px-8 py-4 bg-linear-to-b from-[#010812] to-[#0C1322]">
-        {mensagens.map((msg, index) => {
-          if (msg.tipo === "anexo") {
-            return (
-              <div key={index} className="flex justify-end">
-                <div className="flex items-center gap-2 max-w-[80%] rounded-lg px-4 py-3 text-sm sm:text-base bg-[#333D55] text-white">
-                  <FileText size={18} className="shrink-0 text-[#EF7541]" />
-                  <span className="truncate">{msg.texto}</span>
-                </div>
-              </div>
-            )
-          }
-          return (
+        {mensagens.map((msg, index) => (
+          <div
+            key={index}
+            className={`flex ${msg.tipo === "usuario" ? "justify-end" : "justify-start"}`}
+          >
             <div
-              key={index}
-              className={`flex ${msg.tipo === "usuario" ? "justify-end" : "justify-start"}`}
+              className={`relative max-w-[80%] rounded-lg px-4 py-3 text-sm sm:text-base ${
+                msg.tipo === "usuario"
+                  ? "bg-[#EF7541] text-white rounded-tr-none"
+                  : "bg-[#212838] text-[#AEC5F4] rounded-tl-none"
+              }`}
             >
-              <div
-                className={`relative max-w-[80%] rounded-lg px-4 py-3 text-sm sm:text-base ${
-                  msg.tipo === "usuario"
-                    ? "bg-[#EF7541] text-white rounded-tr-none"
-                    : "bg-[#212838] text-[#AEC5F4] rounded-tl-none"
-                }`}
-              >
-                {/* pontinha do usuario*/}
-                {msg.tipo === "usuario" && (
-                  <span
-                    className="absolute bottom-full right-0 w-3 h-3 bg-[#EF7541]"
-                    style={{ clipPath: "polygon(100% 100%, 100% 0, 0 100%)" }}
-                  />
-                )}
+              {msg.tipo === "usuario" && (
+                <span
+                  className="absolute bottom-full right-0 w-3 h-3 bg-[#EF7541]"
+                  style={{ clipPath: "polygon(100% 100%, 100% 0, 0 100%)" }}
+                />
+              )}
+              {msg.tipo === "agente" && (
+                <span
+                  className="absolute bottom-full left-0 w-3 h-3 bg-[#212838]"
+                  style={{ clipPath: "polygon(0 100%, 0 0, 100% 100%)" }}
+                />
+              )}
 
-                {/* pontinha do agente */}
-                {msg.tipo === "agente" && (
-                  <span
-                    className="absolute bottom-full left-0 w-3 h-3 bg-[#212838]"
-                    style={{ clipPath: "polygon(0 100%, 0 0, 100% 100%)" }}
-                  />
-                )}
+              {msg.anexo && (
+                <div className="flex items-center gap-2 rounded-md bg-black/15 px-3 py-2 mb-2">
+                  <FileText size={16} className="shrink-0 text-white" />
+                  <span className="truncate text-xs sm:text-sm">
+                    {msg.anexo}
+                  </span>
+                </div>
+              )}
 
-                {msg.tipo === "agente" ? (
+              {msg.texto &&
+                (msg.tipo === "agente" ? (
                   <div className="markdown-mensagem prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-pre:bg-[#0C1322] prose-code:text-[#EF7541]">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {msg.texto}
@@ -177,11 +203,10 @@ function ChatBot() {
                   </div>
                 ) : (
                   msg.texto
-                )}
-              </div>
+                ))}
             </div>
-          )
-        })}
+          </div>
+        ))}
 
         {carregando && (
           <div className="flex justify-start">
