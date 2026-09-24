@@ -66,7 +66,7 @@ function Sidebar() {
             className="w-10 h-10 flex justify-center items-center rounded-lg hover:bg-[#212838] duration-200"
             onClick={() => setExpandido(!expandido)}
           >
-            <ChevronsLeft size={24} color={"#EF7541"} />
+            <ChevronsLeft size={36} color={"#EF7541"} />
           </button>
         )}
       </div>
@@ -76,11 +76,11 @@ function Sidebar() {
           className="w-1/2 h-10 flex justify-center items-center rounded-lg hover:bg-[#212838] duration-200"
           onClick={() => setExpandido(!expandido)}
         >
-          <ChevronsRight size={28} color={"#EF7541"} />
+          <ChevronsRight size={36} color={"#EF7541"} />
         </button>
       )}
 
-      <div className="w-full h-1/4 flex flex-col items-center justify-center gap-4 p-2">
+      <div className="w-full h-1/2 flex flex-col items-center justify-center gap-4 p-2">
         {Paginas.map((pagina) => {
           const Icone = icones[pagina.icone as keyof typeof icones]
 
@@ -88,12 +88,12 @@ function Sidebar() {
             <Link
               key={pagina.rota}
               href={pagina.rota}
-              className={`relative group h-20 transition-all duration-300 ${expandido ? "w-70" : "w-12"}`}
+              className={`relative group h-12 transition-all duration-300 ${expandido ? "w-70" : "w-12"}`}
             >
               <div
                 className={`bg-[#212838] w-full h-full flex  gap-2 rounded-lg transition duration-300 hover:bg-[#010812] hover:cursor-pointer ${expandido ? "items-center justify-start pl-4" : "items-center justify-center"}`}
               >
-                <Icone size={28} color={"#EF7541"} />
+                <Icone size={32} color={"#EF7541"} />
                 {expandido && (
                   <h1 className="font-semibold text-[#AEC5F4]">
                     {pagina.label}
@@ -149,7 +149,7 @@ function Sidebar() {
             <Link
               key={paginaConfig.rota}
               href={paginaConfig.rota}
-              className={`relative group h-20 transition-all duration-300 ${expandido ? "w-70" : "w-12"}`}
+              className={`relative group h-12 transition-all duration-300 ${expandido ? "w-70" : "w-12"}`}
             >
               <div
                 className={`bg-[#212838] w-full h-full flex  gap-2 rounded-lg transition duration-300 hover:bg-[#010812] hover:cursor-pointer ${expandido ? "items-center justify-start pl-4" : "items-center justify-center"}`}
