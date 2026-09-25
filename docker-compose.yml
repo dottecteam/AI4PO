@@ -29,7 +29,8 @@ services:
       - OLLAMA_URL=http://host.docker.internal:11434
       - OLLAMA_MODEL= ai4po-model
     depends_on:
-      - db # Faço o backend esperar o container do banco subir antes de iniciar
+      db:
+        condition: service_healthy # Aguarda o healthcheck do 'db' indicar sucesso
 
   db:
     image: pgvector/pgvector:pg16
@@ -43,6 +44,11 @@ services:
       - "5432:5432" # Exponho a porta 5432 para conseguir conectar via DBeaver/psql ou rodar comandos locais
     volumes:
       - pgdata:/var/lib/postgresql/data # Garante que os dados e tabelas não sumam quando o container reiniciar
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pgdata:
