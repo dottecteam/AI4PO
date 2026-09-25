@@ -1,19 +1,36 @@
 import Link from "next/link";
+import { SearchX } from "lucide-react";
+import type { Metadata } from "next";
+import { Button } from "@/app/components/ui/Button";
+
+export const metadata: Metadata = {
+    title: "Página não encontrada | AI4PO",
+};
 
 export default function NotFound() {
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-[#010812] p-6">
-            <h1 className="text-6xl md:text-8xl font-black text-[#EF7541]">404</h1>
-            <h2 className="text-2xl md:text-3xl font-bold mt-4 text-[#EF7541]">Página não encontrada</h2>
-            <p className="text-white mt-2 text-center max-w-md">
-                Ops! O conteúdo que você está procurando não existe ou foi movido.
-            </p>
-            <Link
-                href="/"
-                className="mt-8 px-8 py-3 bg-[#EF7541] text-white rounded-lg font-bold hover:bg-[#0C1322] transition-all active:scale-95 shadow-lg shadow-[#EF7541]/20"
-            >
-                Voltar para o Início
-            </Link>
+        <div className="flex flex-col items-center justify-center min-h-screen bg-background p-6">
+            <div className="flex flex-col items-center text-center w-full max-w-md bg-[var(--surface-elevated)] p-10 rounded-2xl border border-gray-800/50 shadow-2xl">
+                <SearchX size={64} className="text-primary mb-6 animate-pulse" strokeWidth={1.5} />
+                
+                <h1 className="text-6xl font-black text-primary tracking-tighter">
+                    404
+                </h1>
+                <h2 className="text-2xl font-bold mt-4 text-white">
+                    Página não encontrada
+                </h2>
+                
+                <p className="text-[var(--foreground-muted)] mt-3 mb-4 leading-relaxed">
+                    Ops! O conteúdo que você está procurando não existe, foi movido ou você não tem permissão para acessá-lo.
+                </p>
+                
+                {/* Envolvendo o botão com o Link para manter o roteamento rápido */}
+                <Link href="/" className="w-full block">
+                    <Button type="button">
+                        Voltar para o Início
+                    </Button>
+                </Link>
+            </div>
         </div>
     );
 }
