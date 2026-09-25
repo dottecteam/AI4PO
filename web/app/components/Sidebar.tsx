@@ -1,178 +1,97 @@
 "use client"
-
-import {
-  Home,
-  MessagesSquare,
-  Loader,
-  FolderOpen,
-  CircleUserRound,
-  Settings,
-  ChevronsRight,
-  ChevronsLeft,
-} from "lucide-react"
-import Link from "next/link"
+import { useState, useEffect } from "react"
+import { usePathname } from "next/navigation"
+import { PanelLeftClose, PanelLeftOpen, Menu } from "lucide-react"
 import Logo from "./Logo"
-import { useState } from "react"
+import { PAGINAS_PRINCIPAIS, PAGINAS_CONFIG } from "@/app/constants/navigation"
+import { SidebarItem } from "./app/SidebarItem"
 
-function Sidebar() {
+export default function Sidebar() {
   const [expandido, setExpandido] = useState(false)
+  const pathname = usePathname()
 
-  const Paginas = [
-    { icone: "Home", label: "Página Inicial", rota: "/dashboard" },
-    { icone: "MessagesSquare", label: "ChatBot", rota: "/chatbot" },
-    { icone: "FolderOpen", label: "Projetos", rota: "/projetos" },
-    { icone: "Loader", label: "Competências", rota: "/competencias" },
-  ]
-
-  const Configuracoes = [
-    { icone: "Settings", label: "Configurações", rota: "/configuracoes" },
-    { icone: "CircleUserRound", label: "Meu Perfil", rota: "/perfil" },
-  ]
-
-  //Dados em mock só até implementar o banco
-  const [historico, setHistorico] = useState([
-    {
-      id: 1,
-      titulo: "Funcionários que sabem React no projeto X",
-      data: "Hoje",
-    },
-    {
-      id: 2,
-      titulo: "Levantamento de requisitos para o projeto Y",
-      data: "Ontem",
-    },
-    { id: 3, titulo: "Dúvidas sobre o projeto Z", data: "08 Ago" },
-  ])
-
-  const icones = { Home, MessagesSquare, FolderOpen, Loader }
-  const iconesConfig = { Settings, CircleUserRound }
+  // Fecha o menu mobile automaticamente ao trocar de página
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      setExpandido(false)
+    }
+  }, [pathname])
 
   return (
-    <div
-      className={`bg-[#0C1322] h-full flex flex-col items-center justify-center gap-6 transition-all duration-300 ${expandido ? "w-80" : "w-20"}`}
-    >
-      <div
-        className={`flex items-center w-full ${expandido ? "flex-row justify-between px-4" : "flex-col justify-center"}`}
+    <>
+      {/* ==================================================== */}
+      {/* OVERLAY E BOTÃO FLUTUANTE (Apenas Mobile)              */}
+      {/* ==================================================== */}
+      
+      {/* Botão de Menu Flutuante (Escondido quando o menu abre) */}
+      <button
+        className={`
+          md:hidden fixed top-5 left-5 z-40 p-2.5 rounded-lg
+          text-[var(--foreground-muted)] hover:text-primary shadow-xl transition-all duration-300
+          ${expandido ? "opacity-0 -translate-x-full pointer-events-none" : "opacity-100 translate-x-0"}
+        `}
+        onClick={() => setExpandido(true)}
       >
-        <div className="flex items-center gap-2">
-          <Logo altura={60} largura={60} />
-          {expandido && (
-            <h1 className="text-white text-lg font-semibold">AI4PO</h1>
-          )}
-        </div>
+        <Menu size={22} />
+      </button>
 
-        {expandido && (
-          <button
-            className="w-10 h-10 flex justify-center items-center rounded-lg hover:bg-[#212838] duration-200"
-            onClick={() => setExpandido(!expandido)}
-          >
-            <ChevronsLeft size={36} color={"#EF7541"} />
-          </button>
-        )}
-      </div>
-
-      {!expandido && (
-        <button
-          className="w-1/2 h-10 flex justify-center items-center rounded-lg hover:bg-[#212838] duration-200"
-          onClick={() => setExpandido(!expandido)}
-        >
-          <ChevronsRight size={36} color={"#EF7541"} />
-        </button>
+      {/* Fundo Escuro ao abrir o menu no celular */}
+      {expandido && (
+        <div 
+          className="md:hidden fixed inset-0 bg-black/50 z-40 backdrop-blur-sm transition-opacity"
+          onClick={() => setExpandido(false)}
+        />
       )}
 
-      <div className="w-full h-1/2 flex flex-col items-center justify-center gap-4 p-2">
-        {Paginas.map((pagina) => {
-          const Icone = icones[pagina.icone as keyof typeof icones]
-
-          return (
-            <Link
-              key={pagina.rota}
-              href={pagina.rota}
-              className={`relative group h-12 transition-all duration-300 ${expandido ? "w-70" : "w-12"}`}
-            >
-              <div
-                className={`bg-[#212838] w-full h-full flex  gap-2 rounded-lg transition duration-300 hover:bg-[#010812] hover:cursor-pointer ${expandido ? "items-center justify-start pl-4" : "items-center justify-center"}`}
-              >
-                <Icone size={32} color={"#EF7541"} />
-                {expandido && (
-                  <h1 className="font-semibold text-[#AEC5F4]">
-                    {pagina.label}
-                  </h1>
-                )}
-              </div>
-
-              {!expandido && (
-                <span className="absolute left-full top-1/2 -translate-y-1/2 ml-2 whitespace-nowrap bg-[#212838] text-[#AEC5F4] text-sm px-2 py-1 rounded-md opacity-0 scale-95 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:scale-100 font-semibold select-none">
-                  {pagina.label}
-                </span>
-              )}
-            </Link>
-          )
-        })}
-      </div>
-
-      {/* Parte do historico de conversas */}
-      <div className="w-full h-1/2 flex flex-col overflow-hidden">
-        {expandido ? (
-          <div className="w-full h-full flex flex-col min-h-0">
-            <h1 className="select-none text-sm px-2 py-1 font-semibold text-[#EF7541] text-center shrink-0">
-              Histórico de Conversas
-            </h1>
-            <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1 px-3">
-              {historico.map((conversa) => (
-                <Link
-                  key={conversa.id}
-                  href={`/chatbot/${conversa.id}`}
-                  className="flex flex-col px-2 py-2 rounded-md hover:bg-[#212838] transition-colors duration-200"
-                >
-                  <span className="text-white text-sm truncate">
-                    {conversa.titulo}
-                  </span>
-                  <span className="text-[#5C6B8A] text-xs">
-                    {conversa.data}
-                  </span>
-                </Link>
-              ))}
+      {/* ==================================================== */}
+      {/* COMPONENTE DA SIDEBAR (Desktop & Mobile Drawer)        */}
+      {/* ==================================================== */}
+      <aside
+        className={`
+          fixed md:relative top-0 left-0 z-50 h-full bg-background border-r border-gray-800/50 
+          flex flex-col py-4 transition-all duration-300 ease-in-out
+          ${expandido 
+            ? "translate-x-0 w-[260px] px-3 shadow-2xl md:shadow-none" 
+            : "-translate-x-full w-[260px] md:translate-x-0 md:w-[68px] md:px-2 md:items-center"
+          }
+        `}
+      >
+        {/* Header / Toggle */}
+        <div className={`flex w-full items-center mb-6 h-10 ${expandido ? "justify-between px-1" : "justify-center"}`}>
+          
+          <div className={`flex items-center gap-2 overflow-hidden transition-all duration-300 ${expandido ? "max-w-[150px] opacity-100" : "max-w-0 opacity-0 hidden md:flex"}`}>
+            <div className="shrink-0">
+              <Logo altura={24} largura={24} />
             </div>
+            <h1 className="text-white text-sm font-semibold whitespace-nowrap tracking-wide">
+              AI4PO
+            </h1>
           </div>
-        ) : (
-          <div />
-        )}
-      </div>
+          
+          <button
+            className="flex items-center justify-center p-2 rounded-lg text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-elevated)] transition-colors duration-200"
+            onClick={() => setExpandido(!expandido)}
+          >
+            {expandido ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} className="hidden md:block" />}
+          </button>
+        </div>
 
-      <div className="w-full h-1/2 flex flex-col justify-center items-center gap-2">
-        {Configuracoes.map((paginaConfig) => {
-          const IconeConfig =
-            iconesConfig[paginaConfig.icone as keyof typeof iconesConfig]
+        {/* Links Principais */}
+        <nav className="w-full flex flex-col gap-1">
+          {PAGINAS_PRINCIPAIS.map((pagina) => (
+            <SidebarItem key={pagina.rota} {...pagina} expandido={expandido} />
+          ))}
+        </nav>
 
-          return (
-            <Link
-              key={paginaConfig.rota}
-              href={paginaConfig.rota}
-              className={`relative group h-12 transition-all duration-300 ${expandido ? "w-70" : "w-12"}`}
-            >
-              <div
-                className={`bg-[#212838] w-full h-full flex  gap-2 rounded-lg transition duration-300 hover:bg-[#010812] hover:cursor-pointer ${expandido ? "items-center justify-start pl-4" : "items-center justify-center"}`}
-              >
-                <IconeConfig size={28} color={"#EF7541"} />
-                {expandido && (
-                  <h1 className="font-semibold text-[#AEC5F4]">
-                    {paginaConfig.label}
-                  </h1>
-                )}
-              </div>
+        <div className="flex-1" />
 
-              {!expandido && (
-                <span className="absolute left-full top-1/2 -translate-y-1/2 ml-2 whitespace-nowrap bg-[#212838] text-[#AEC5F4] text-sm px-2 py-1 rounded-md opacity-0 scale-95 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:scale-100 font-semibold select-none">
-                  {paginaConfig.label}
-                </span>
-              )}
-            </Link>
-          )
-        })}
-      </div>
-    </div>
+        {/* Links de Configuração */}
+        <nav className="w-full flex flex-col gap-1">
+          {PAGINAS_CONFIG.map((pagina) => (
+            <SidebarItem key={pagina.rota} {...pagina} expandido={expandido} />
+          ))}
+        </nav>
+      </aside>
+    </>
   )
 }
-
-export default Sidebar
