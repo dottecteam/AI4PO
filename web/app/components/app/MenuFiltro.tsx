@@ -53,22 +53,17 @@ export default function MenuFiltro({ grupos, selecionados, onAtualizar }: MenuFi
     return (
         <div ref={ref} className="relative text-white w-6 h-6">
             <button onClick={() => setAberto((atual) => !atual)}>
-                <svg viewBox="0 0 23 21" fill="none" className="w-6 h-6 text-[#EF7541]">
-                    <path
-                        d="M21.25 1.25H1.25L9.25 10.71V17.25L13.25 19.25V10.71L21.25 1.25Z"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
+                {/* Trocado o text-[#EF7541] por text-primary */}
+                <svg viewBox="0 0 23 21" fill="none" className="w-6 h-6 text-primary">
+                    <path d="M21.25 1.25H1.25L9.25 10.71V17.25L13.25 19.25V10.71L21.25 1.25Z" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
             </button>
 
             {aberto && (
-                <div className="absolute right-0 z-10 mt-2 w-max min-w-max rounded-md border border-[#F7C09A] bg-[#111827] p-4">
+                <div className="absolute right-0 z-10 mt-2 w-max min-w-max rounded-md border border-primary-light bg-[var(--surface-elevated)] p-4 shadow-xl">
                     {grupos.map((grupo) => (
                         <div key={grupo.chave}>
-                            <p className="font-semibold text-[#EF7541]">
+                            <p className="font-semibold text-primary mb-1">
                                 {grupo.rotulo}
                             </p>
 
