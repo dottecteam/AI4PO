@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework.throttling import AnonRateThrottle
 from django.conf import settings
 from .permissions import IsAdmin
 
@@ -18,9 +19,14 @@ def serialize_user(user):
     return {"id": user.id_po, "nome": user.nome, "email": user.email}
 
 
+# Limita requisições anônimas a 5 tentativas por minuto por IP
+class LoginThrottle(AnonRateThrottle):
+    rate = '5/min'
+
 class LoginView(APIView):
     permission_classes = []  # login tem que ser acessível sem estar autenticado
-
+    throttle_classes = [LoginThrottle]
+    
     def post(self, request):
         email = request.data.get("email")
         senha = request.data.get("senha")

@@ -48,6 +48,12 @@ ALLOWED_HOSTS = config(
     ]
 )
 
+CSRF_TRUSTED_ORIGINS = ["http://localhost:3000"]
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# Permite que o JS do frontend (React/Next.js) leia o cookie CSRF. 
+# Isso é essencial, diferentemente do JWT que é restrito ao httponly.
+CSRF_COOKIE_HTTPONLY = False
 
 # ---------------------------------------------------------------------------
 # Application definition
