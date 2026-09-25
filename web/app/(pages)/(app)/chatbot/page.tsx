@@ -111,7 +111,7 @@ function ChatBot() {
 
       const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.error || "Erro ao conversar com o agente.")
+        throw new Error(data.details || data.error || "Erro ao conversar com o agente.");
       }
       setMensagens((prev) => [...prev, { tipo: "agente", texto: data.message }])
     } catch (error) {
@@ -166,11 +166,10 @@ function ChatBot() {
             className={`flex ${msg.tipo === "usuario" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`relative max-w-[80%] rounded-lg px-4 py-3 text-sm sm:text-base ${
-                msg.tipo === "usuario"
+              className={`relative max-w-[80%] rounded-lg px-4 py-3 text-sm sm:text-base ${msg.tipo === "usuario"
                   ? "bg-[#EF7541] text-white rounded-tr-none"
                   : "bg-[#212838] text-[#AEC5F4] rounded-tl-none"
-              }`}
+                }`}
             >
               {msg.tipo === "usuario" && (
                 <span

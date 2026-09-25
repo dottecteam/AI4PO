@@ -2,30 +2,21 @@
 @plugin "@tailwindcss/typography";
 
 :root {
-  /* Cores Principais */
-  --primary: #202AD0;
-  --primary-dark: #161C8C;
-  --primary-light: #5B64E8;
-  --secondary: #FFE372;
-  --secondary-soft: #FFF1B8;
-  --tertiary: #4EDAD3;
-
-  /* Neutros (Brancos, Cinzas e Pretos) */
-  --background: #F6F6F6;
-  --foreground: #171717;
+  /* Cores Principais AI4PO */
+  --primary: #EF7541;
+  --primary-dark: #d9653a;
+  --primary-light: #F7C09A;
   
-  --white: #FFFFFF;
-  --gray-50: #F9FAFB;
-  --gray-100: #F3F4F6;
-  --gray-200: #E5E7EB;
-  --gray-300: #D1D5DB;
-  --gray-400: #9CA3AF;
-  --gray-500: #6B7280;
-  --gray-600: #4B5563;
-  --gray-700: #374151;
-  --gray-800: #1F2937;
-  --gray-900: #111827;
-  --black: #000000;
+  /* Cores Secundárias / Destaques */
+  --secondary: #AEC5F4;
+  --secondary-muted: #5C6B8A;
+
+  /* Neutros (Dark Theme Base) */
+  --background: #010812;
+  --surface-base: #0C1322;
+  --surface-elevated: #212838;
+  --foreground: #FFFFFF;
+  --foreground-muted: #9CA3AF;
 
   /* Estados */
   --error: #EF4444;
@@ -40,21 +31,7 @@
   --color-primary-dark: var(--primary-dark);
   --color-primary-light: var(--primary-light);
   --color-secondary: var(--secondary);
-  --color-secondary-soft: var(--secondary-soft);
-  --color-tertiary: var(--tertiary);
-  
-  /* Escala de Neutros */
-  --color-gray-50: var(--gray-50);
-  --color-gray-100: var(--gray-100);
-  --color-gray-200: var(--gray-200);
-  --color-gray-300: var(--gray-300);
-  --color-gray-400: var(--gray-400);
-  --color-gray-500: var(--gray-500);
-  --color-gray-600: var(--gray-600);
-  --color-gray-700: var(--gray-700);
-  --color-gray-800: var(--gray-800);
-  --color-gray-900: var(--gray-900);
-  
+
   --font-sans: var(--font-catamaran), ui-sans-serif, system-ui;
 
   --breakpoint-sm: 40rem;   /* 640px */
@@ -65,15 +42,6 @@
 
   --radius-xl: 14px;
   --radius-2xl: 20px;
-
-  --spacing-18: 4.5rem;
-
-   --animate-marquee: marquee 18s linear infinite;
-
-  @keyframes marquee {
-    0% { transform: translateX(0%); }
-    100% { transform: translateX(-50%); }
-  }
 }
 
 body {
@@ -81,15 +49,53 @@ body {
   color: var(--foreground);
 }
 
+/* ==========================================
+   SCROLLBAR CUSTOMIZADA (Scroll Bonitinho)
+========================================== */
+
+/* Suporte Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-elevated) var(--background);
+}
+
+/* Chrome, Edge e Safari */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surface-elevated);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* ==========================================
+   COMPONENTES GERAIS
+========================================== */
+
 @layer components {
   .container-responsive {
     @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
-  
+
   .card-base {
-    @apply bg-white rounded-[28px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] p-6;
+    /* Ajustado para refletir o design dos seus cards atuais */
+    @apply w-full rounded-xl bg-[#212838] p-5 border border-transparent;
   }
 }
+
+/* Utilitários Extras */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { scrollbar-width: none; }
 
 .range-thumb {
   -webkit-appearance: none;
@@ -128,7 +134,7 @@ body {
   border-radius: 50%;
   background: var(--primary);
   border: 3px solid #fff;
-  box-shadow: 0 2px 6px rgba(32, 42, 208, 0.35);
+  box-shadow: 0 2px 6px rgba(239, 117, 65, 0.35);
   cursor: grab;
   will-change: transform;
   transition: transform 0.12s ease, box-shadow 0.12s ease;
@@ -136,12 +142,12 @@ body {
 }
 .range-thumb::-webkit-slider-thumb:hover {
   transform: scale(1.2);
-  box-shadow: 0 3px 10px rgba(32, 42, 208, 0.45);
+  box-shadow: 0 3px 10px rgba(239, 117, 65, 0.45);
 }
 .range-thumb::-webkit-slider-thumb:active {
   cursor: grabbing;
   transform: scale(1.25);
-  box-shadow: 0 4px 14px rgba(32, 42, 208, 0.55);
+  box-shadow: 0 4px 14px rgba(239, 117, 65, 0.55);
 }
 .range-thumb::-moz-range-thumb {
   pointer-events: auto;
@@ -150,7 +156,7 @@ body {
   border-radius: 50%;
   background: var(--primary);
   border: 3px solid #fff;
-  box-shadow: 0 2px 6px rgba(32, 42, 208, 0.35);
+  box-shadow: 0 2px 6px rgba(239, 117, 65, 0.35);
   cursor: grab;
   will-change: transform;
   transition: transform 0.12s ease;
@@ -162,5 +168,3 @@ body {
   cursor: grabbing;
   transform: scale(1.25);
 }
-.scrollbar-hide::-webkit-scrollbar { display: none; }
-.scrollbar-hide { scrollbar-width: none; }
