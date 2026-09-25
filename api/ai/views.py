@@ -58,7 +58,7 @@ def executar_ferramenta(nome_ferramenta, args, message, projeto_id, documento_te
     elif nome_ferramenta == "analisar_documento_anexado":
         if documento_texto:
             return responder_com_documento(texto_doc=documento_texto, pergunta=args.get("pergunta", message))
-        return "Nenhum texto de documento foi fornecido nesta requisição."
+        return "Nenhum documento foi anexado a esta requisição."
         
     return f"Erro: Ferramenta '{nome_ferramenta}' não existe."
 
@@ -71,32 +71,54 @@ def chat(request):
         return JsonResponse({"error": "Apenas POST é permitido."}, status=405)
 
     try:
-        body = json.loads(request.body.decode("utf-8"))
-        message = body.get("message", "")
-        projeto_id = body.get("projeto_id")
-        documento_texto = body.get("documento_texto")
+        # -------------------------------------------------------------
+        # Identifica o Content-Type da Requisição
+        # -------------------------------------------------------------
+        if "multipart/form-data" in request.content_type:
+            # Usuário enviou um arquivo em anexo
+            message = request.POST.get("message", "")
+            projeto_id = request.POST.get("projeto_id")
+            arquivo = request.FILES.get("arquivo")
+            
+            documento_texto = ""
+            if arquivo:
+                try:
+                    documento_texto = arquivo.read().decode("utf-8")
+                except UnicodeDecodeError:
+                    return JsonResponse({"error": "O arquivo enviado não é um formato de texto válido (UTF-8)."}, status=400)
+        else:
+            # Chat normal apenas com texto
+            body = json.loads(request.body.decode("utf-8"))
+            message = body.get("message", "")
+            projeto_id = body.get("projeto_id")
+            documento_texto = body.get("documento_texto", "")
 
-        if not message:
-            return JsonResponse({"error": "A mensagem é obrigatória."}, status=400)
+        if not message and not documento_texto:
+            return JsonResponse({"error": "A mensagem ou o documento são obrigatórios."}, status=400)
 
+        # --- LOG VISUAL: PERGUNTA DO USUÁRIO ---
         print(f"\n{'='*60}")
         print(f"👤 [PO]: {message}")
+        if documento_texto:
+            print(f"📎 [ANEXO DETECTADO]: Arquivo lido com sucesso ({len(documento_texto)} caracteres)")
         print(f"{'='*60}")
 
-        # -------------------------------------------------------------
-        # Injeção de Contexto Dinâmico (Tempo, Local e Trava JSON)
-        # -------------------------------------------------------------
+        # Injeção de Contexto Dinâmico
         agora = datetime.now()
         data_hora_formatada = agora.strftime("%A, %d/%m/%Y às %H:%M")
-        
         system_msg = {
             "role": "system", 
-            "content": f"Contexto atual do sistema: A data e hora exata agora é {data_hora_formatada}. Local: São José dos Campos, SP. LEMBRETE CRÍTICO: Responda ao usuário SEMPRE em texto humano puro. NUNCA imprima JSONs na resposta."
+            "content": f"Contexto do sistema: A data e hora exata agora é {data_hora_formatada}. Local: São José dos Campos, SP. LEMBRETE CRÍTICO: Responda SEMPRE em texto humano puro. NUNCA imprima JSONs."
         }
+        
+        # O pulo do gato: Avisamos a IA que o arquivo chegou no backend
+        conteudo_usuario = message
+        if documento_texto:
+            conteudo_usuario += "\n\n[ALERTA INTERNO DO SISTEMA: O usuário anexou um arquivo válido nesta mensagem. Você DEVE acionar a ferramenta 'analisar_documento_anexado' para ler o conteúdo dele antes de responder.]"
 
-        messages = [system_msg, {"role": "user", "content": message}]
+        messages = [system_msg, {"role": "user", "content": conteudo_usuario}]
 
-        # Chamada inicial
+        # Chamada inicial para o Agente decidir o que fazer
         response = requests.post(
             f"{OLLAMA_URL}/api/chat",
             json={"model": MODEL, "messages": messages, "tools": TOOLS, "stream": False},
@@ -107,14 +129,13 @@ def chat(request):
 
         # Execução de Ferramentas
         if response_message.get("tool_calls"):
-            # O modelo chamou uma ferramenta DE VERDADE (formato correto da API)
             messages.append(response_message)
             
             for tool_call in response_message["tool_calls"]:
                 function_name = tool_call["function"]["name"]
                 args = tool_call["function"]["arguments"]
                 
-                print(f"⚙️  [AGENTE]: Acionou -> {function_name}")
+                print(f"⚙️  [AGENTE TOMA DECISÃO]: Acionou a ferramenta '{function_name}' com os argumentos: {args}")
                 
                 resultado_ferramenta = executar_ferramenta(
                     nome_ferramenta=function_name,
@@ -130,7 +151,7 @@ def chat(request):
                     "name": function_name
                 })
 
-            # Resposta final após leitura das ferramentas
+            # Agente lê os resultados e formula a resposta final
             final_response = requests.post(
                 f"{OLLAMA_URL}/api/chat",
                 json={"model": MODEL, "messages": messages, "stream": False},
@@ -139,19 +160,21 @@ def chat(request):
             final_response.raise_for_status()
             resposta_final = final_response.json()["message"]["content"]
             
-            print(f"\n🤖 [AIPO]: {resposta_final}")
+            # --- LOG VISUAL: RESPOSTA FINAL DO AGENTE ---
+            print(f"\n🤖 [AIPO RESPOSTA FINAL]:\n{resposta_final}")
             print(f"{'='*60}\n")
             
             return JsonResponse({"message": resposta_final})
 
-        # --- LOG: RESPOSTA DO AGENTE (Sem ferramentas) ---
+        # Caso ele não utilize ferramentas (Bate-papo)
         resposta_direta = response_message.get("content", "")
         
+        # Filtro de Segurança
         if resposta_direta.strip().startswith('{"name":') or resposta_direta.strip().startswith('{"'):
-            print(f"⚠️ [WARNING]: O modelo alucinou um JSON na resposta direta. Interceptado.")
-            resposta_direta = "Desculpe, eu acabei me confundindo com os formatos internos de ferramentas. Como posso ajudar com os seus projetos hoje?"
+            print(f"⚠️ [WARNING]: Alucinação JSON bloqueada pelo backend.")
+            resposta_direta = "Desculpe, acabei me confundindo com a formatação interna. Como posso ajudar você hoje?"
 
-        print(f"🤖 [AIPO] (Conversa Direta): {resposta_direta}")
+        print(f"🤖 [AIPO BATE-PAPO DIRETO]:\n{resposta_direta}")
         print(f"{'='*60}\n")
         
         return JsonResponse({"message": resposta_direta})
@@ -159,9 +182,9 @@ def chat(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "JSON inválido."}, status=400)
     except FalhaDeEmbeddingError as error:
-        print("\n[ERRO RAG] Falha ao gerar vetor:", str(error))
+        print(f"\n[ERRO RAG] Falha ao gerar vetor: {str(error)}")
         return JsonResponse({"error": "Falha na geração de embeddings.", "details": str(error)}, status=500)
     except Exception as error:
-        print("\n[ERRO FATAL]")
+        print(f"\n❌ [ERRO FATAL NO SERVIDOR]")
         traceback.print_exc()
         return JsonResponse({"error": "Erro interno no servidor.", "details": str(error)}, status=500)
