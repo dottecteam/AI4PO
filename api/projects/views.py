@@ -17,8 +17,13 @@ from .serializers import ProjetoSerializer, DocumentoUploadSerializer
 from .upload_handlers import DocumentUploadSizeHandler
 from .validators import MAX_UPLOAD_SIZE_BYTES, UPLOAD_SIZE_MESSAGE
 
+import time
+
 
 MAX_MULTIPART_OVERHEAD_BYTES = 64 * 1024
+
+MAX_TENTATIVAS = 3
+BACKOFF_SEGUNDOS = 2
 
 
 def _upload_size_error_response():
@@ -58,6 +63,14 @@ class ProjetoDataView(generics.RetrieveUpdateDestroyAPIView):
 # -------------------------
 # Documentos
 # -------------------------
+
+class DocumentoListView(generics.ListAPIView):
+    serializer_class = DocumentoUploadSerializer
+
+    def get_queryset(self):
+        return Documento.objects.filter(
+            projeto_id=self.kwargs["project_id"]
+        ).order_by("-data")
 
 class DocumentoUploadView(APIView):
     parser_classes = (MultiPartParser, FormParser)
@@ -111,34 +124,38 @@ class DocumentoUploadView(APIView):
 
 
 def executar_indexacao_documento(documento):
-    """
-    Executa a indexação do documento, limpando chunks antigos caso existam,
-    atualizando os estados e persistindo mensagens de erro se houver falhas.
-    """
     documento.chunks.all().delete()
     documento.estado = "processando"
     documento.mensagem_erro = ""
     documento.save(update_fields=["estado", "mensagem_erro"])
 
-    try:
-        indexar_documento(documento)
-        documento.estado = "processado"
-        documento.mensagem_erro = ""
-        documento.save(update_fields=["estado", "mensagem_erro"])
-    except (
-        FormatoNaoSuportadoError,
-        ArquivoNaoEncontradoError,
-        FalhaDeDecodificacaoError,
-        FalhaDeEmbeddingError,
-    ) as erro:
-        documento.estado = "erro"
-        documento.mensagem_erro = str(erro)
-        documento.save(
-            update_fields=[
-                "estado",
-                "mensagem_erro",
-            ]
-        )
+    ultimo_erro = None
+    for tentativa in range(1, MAX_TENTATIVAS + 1):
+        try:
+            indexar_documento(documento)
+            documento.estado = "processado"
+            documento.mensagem_erro = ""
+            documento.save(update_fields=["estado", "mensagem_erro"])
+            return documento
+        except (
+            FormatoNaoSuportadoError,
+            ArquivoNaoEncontradoError,
+            FalhaDeDecodificacaoError,
+        ) as erro:
+            # erros de conteúdo/arquivo não se resolvem tentando de novo
+            documento.estado = "erro"
+            documento.mensagem_erro = str(erro)
+            documento.save(update_fields=["estado", "mensagem_erro"])
+            return documento
+        except FalhaDeEmbeddingError as erro:
+            # provável instabilidade do Ollama: vale tentar de novo
+            ultimo_erro = erro
+            if tentativa < MAX_TENTATIVAS:
+                time.sleep(BACKOFF_SEGUNDOS * tentativa)
+
+    documento.estado = "erro"
+    documento.mensagem_erro = str(ultimo_erro)
+    documento.save(update_fields=["estado", "mensagem_erro"])
     return documento
 
 
