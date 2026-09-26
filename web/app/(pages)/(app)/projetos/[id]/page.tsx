@@ -4,6 +4,7 @@ import FiltroData from "@/app/components/app/FiltroData"
 import MenuFiltro from "@/app/components/app/MenuFiltro"
 import Breadcrumb from "@/app/components/app/projetos/Breadcrumb"
 import DocumentoCard from "@/app/components/app/projetos/DocumentoCard"
+import UploadDocumento from "@/app/components/app/projetos/UploadDocumento"
 import DropdownSection from "@/app/components/app/projetos/DropdownSection"
 import ProjetoInfo from "@/app/components/app/projetos/ProjetoInfo"
 import TabelaEpicos from "@/app/components/app/projetos/TabelaEpicos"
@@ -19,6 +20,7 @@ export default function PaginaProjeto() {
   const projeto = useProjetoAtual()
 
   const [documentos, setDocumentos] = useState<Documento[]>([])
+  const [modalUploadAberto, setModalUploadAberto] = useState(false)
 
   async function carregarDocumentos() {
     if (!projeto) return
@@ -50,10 +52,6 @@ export default function PaginaProjeto() {
 
   if (!projeto)
     return <p className="text-white text-center">Projeto não encontrado.</p>
-
-  function uploadDocumento() {
-    console.log("adicionando documento")
-  }
 
   // Para aplicar nos filtros
   const tipoUnicos = Array.from(new Set(documentos.map((p) => p.tipo)))
@@ -112,7 +110,10 @@ export default function PaginaProjeto() {
       <TabelaEpicos />
 
       {/* Documentos */}
-      <DropdownSection label="Documentos" onAdd={() => uploadDocumento()}>
+      <DropdownSection
+        label="Documentos"
+        onAdd={() => setModalUploadAberto(true)}
+      >
         <section className="flex flex-col gap-4">
           {/* Pesquisa e Filtragem */}
           <section className="w-full rounded-xl bg-[#212838] border border-transparent flex flex-even items-center gap-3 p-3">
@@ -149,6 +150,13 @@ export default function PaginaProjeto() {
           ))}
         </section>
       </DropdownSection>
+
+      <UploadDocumento
+        aberto={modalUploadAberto}
+        onFechar={() => setModalUploadAberto(false)}
+        projetoId={projeto.id}
+        onEnviado={carregarDocumentos}
+      />
     </main>
   )
 }
