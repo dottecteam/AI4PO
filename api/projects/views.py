@@ -12,7 +12,7 @@ from ai.extraction import (
     FalhaDeDecodificacaoError,
 )
 
-from .models import Projeto
+from .models import Projeto, Documento
 from .serializers import ProjetoSerializer, DocumentoUploadSerializer
 from .upload_handlers import DocumentUploadSizeHandler
 from .validators import MAX_UPLOAD_SIZE_BYTES, UPLOAD_SIZE_MESSAGE
@@ -99,31 +99,7 @@ class DocumentoUploadView(APIView):
 
         documento = serializer.save()
 
-        documento.estado = "processando"
-        documento.save(update_fields=["estado"])
-
-        try:
-            indexar_documento(documento)
-
-            documento.estado = "processado"
-            documento.save(update_fields=["estado"])
-
-        except (
-            FormatoNaoSuportadoError,
-            ArquivoNaoEncontradoError,
-            FalhaDeDecodificacaoError,
-            FalhaDeEmbeddingError,
-        ) as erro:
-
-            documento.estado = "erro"
-            documento.mensagem_erro = str(erro)
-
-            documento.save(
-                update_fields=[
-                    "estado",
-                    "mensagem_erro",
-                ]
-            )
+        executar_indexacao_documento(documento)
 
         return Response(
             DocumentoUploadSerializer(
@@ -131,4 +107,75 @@ class DocumentoUploadView(APIView):
                 context={"request": request},
             ).data,
             status=status.HTTP_201_CREATED,
+        )
+
+
+def executar_indexacao_documento(documento):
+    """
+    Executa a indexação do documento, limpando chunks antigos caso existam,
+    atualizando os estados e persistindo mensagens de erro se houver falhas.
+    """
+    documento.chunks.all().delete()
+    documento.estado = "processando"
+    documento.mensagem_erro = ""
+    documento.save(update_fields=["estado", "mensagem_erro"])
+
+    try:
+        indexar_documento(documento)
+        documento.estado = "processado"
+        documento.mensagem_erro = ""
+        documento.save(update_fields=["estado", "mensagem_erro"])
+    except (
+        FormatoNaoSuportadoError,
+        ArquivoNaoEncontradoError,
+        FalhaDeDecodificacaoError,
+        FalhaDeEmbeddingError,
+    ) as erro:
+        documento.estado = "erro"
+        documento.mensagem_erro = str(erro)
+        documento.save(
+            update_fields=[
+                "estado",
+                "mensagem_erro",
+            ]
+        )
+    return documento
+
+
+class DocumentoReprocessarView(APIView):
+    """
+    Endpoint para acionar o reprocessamento de documentos com falha (task #4-6).
+    """
+
+    def post(self, request, project_id, document_id):
+        projeto = get_object_or_404(
+            Projeto,
+            pk=project_id,
+        )
+        documento = get_object_or_404(
+            Documento,
+            pk=document_id,
+            projeto=projeto,
+        )
+
+        if not documento.arquivo:
+            return Response(
+                {"error": "Documento não possui arquivo associado para reprocessamento."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if documento.estado == "processando":
+            return Response(
+                {"error": "Documento já está sendo processado."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        executar_indexacao_documento(documento)
+
+        return Response(
+            DocumentoUploadSerializer(
+                documento,
+                context={"request": request},
+            ).data,
+            status=status.HTTP_200_OK,
         )

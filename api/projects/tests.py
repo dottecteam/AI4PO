@@ -110,12 +110,14 @@ class DocumentoFilePersistenceTests(TestCase):
         media_override.enable()
         self.addCleanup(media_override.disable)
 
-        usuario_po = get_user_model().objects.create_user(username="product-owner")
+        usuario_po = get_user_model().objects.create_user(
+            email="po@test.com",
+            nome="Product Owner",
+        )
         self.projeto = Projeto.objects.create(
             usuario_po=usuario_po,
-            nome="Projeto de testes",
+            titulo="Projeto de testes",
             descricao="Descrição",
-            objetivo="Objetivo",
         )
 
     def test_saves_uploaded_file_in_configured_storage(self):
@@ -158,12 +160,14 @@ class DocumentUploadAPITests(TestCase):
         media_override.enable()
         self.addCleanup(media_override.disable)
 
-        usuario_po = get_user_model().objects.create_user(username="api-product-owner")
+        usuario_po = get_user_model().objects.create_user(
+            email="api-po@test.com",
+            nome="API Product Owner",
+        )
         self.projeto = Projeto.objects.create(
             usuario_po=usuario_po,
-            nome="Projeto da API",
+            titulo="Projeto da API",
             descricao="Descrição",
-            objetivo="Objetivo",
         )
         self.client = APIClient()
         self.url = reverse("document-upload", kwargs={"project_id": self.projeto.pk})
@@ -346,3 +350,160 @@ class DocumentUploadAPITests(TestCase):
         documento = Documento.objects.get()
         self.assertEqual(documento.estado, 'erro')
         self.assertTrue(documento.mensagem_erro)
+
+
+class DocumentReprocessAPITests(TestCase):
+    def setUp(self):
+        self.media_root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.media_root, ignore_errors=True)
+
+        media_override = override_settings(MEDIA_ROOT=self.media_root)
+        media_override.enable()
+        self.addCleanup(media_override.disable)
+
+        usuario_po = get_user_model().objects.create_user(
+            email="reprocess-po@test.com",
+            nome="Reprocess PO",
+        )
+        self.projeto = Projeto.objects.create(
+            usuario_po=usuario_po,
+            titulo="Projeto Reprocessamento",
+            descricao="Descrição",
+        )
+        self.client = APIClient()
+
+        self.uploaded_file = SimpleUploadedFile(
+            "documento_falho.txt",
+            b"conteudo do documento falho",
+            content_type="text/plain",
+        )
+        self.documento = Documento.objects.create(
+            projeto=self.projeto,
+            nome="documento_falho.txt",
+            tipo="txt",
+            arquivo=self.uploaded_file,
+            estado="erro",
+            mensagem_erro="Falha de embedding anterior",
+        )
+        self.url = reverse(
+            "document-reprocess",
+            kwargs={
+                "project_id": self.projeto.pk,
+                "document_id": self.documento.pk,
+            },
+        )
+
+    def test_reprocessa_documento_com_sucesso(self):
+        with patch('projects.views.indexar_documento') as mock_indexar:
+            response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.documento.refresh_from_db()
+        mock_indexar.assert_called_once_with(self.documento)
+        self.assertEqual(self.documento.estado, "processado")
+        self.assertEqual(self.documento.mensagem_erro, "")
+        self.assertEqual(response.data["id"], self.documento.pk)
+        self.assertEqual(response.data["estado"], "processado")
+        self.assertEqual(response.data["mensagem_erro"], "")
+
+    def test_reprocessa_limpa_chunks_antigos_antes_de_reindexar(self):
+        from ai.models import ChunkDoc
+
+        # Simula chunks que ficaram salvos de uma tentativa anterior
+        ChunkDoc.objects.create(
+            documento=self.documento,
+            projeto=self.projeto,
+            conteudo="chunk antigo",
+            embedding=[0.1] * 768,
+        )
+        self.assertEqual(self.documento.chunks.count(), 1)
+
+        with patch('projects.views.indexar_documento'):
+            response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # O mock de indexar_documento não cria chunks novos, então deve restar 0 chunks
+        self.assertEqual(self.documento.chunks.count(), 0)
+
+    def test_reprocessa_falha_de_embedding_atualiza_estado_e_mensagem(self):
+        from ai.indexing import FalhaDeEmbeddingError
+
+        with patch(
+            'projects.views.indexar_documento',
+            side_effect=FalhaDeEmbeddingError("Ollama fora do ar"),
+        ):
+            response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.documento.refresh_from_db()
+        self.assertEqual(self.documento.estado, "erro")
+        self.assertIn("Ollama fora do ar", self.documento.mensagem_erro)
+        self.assertEqual(response.data["estado"], "erro")
+
+    def test_reprocessa_falha_de_extracao_atualiza_estado_e_mensagem(self):
+        from ai.extraction import ArquivoNaoEncontradoError
+
+        with patch(
+            'projects.views.indexar_documento',
+            side_effect=ArquivoNaoEncontradoError("Arquivo físico não encontrado"),
+        ):
+            response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.documento.refresh_from_db()
+        self.assertEqual(self.documento.estado, "erro")
+        self.assertIn("Arquivo físico não encontrado", self.documento.mensagem_erro)
+        self.assertEqual(response.data["estado"], "erro")
+
+    def test_reprocessa_retorna_404_para_documento_inexistente(self):
+        url_inexistente = reverse(
+            "document-reprocess",
+            kwargs={
+                "project_id": self.projeto.pk,
+                "document_id": self.documento.pk + 999,
+            },
+        )
+        response = self.client.post(url_inexistente)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_reprocessa_retorna_404_para_documento_de_outro_projeto(self):
+        outro_projeto = Projeto.objects.create(
+            usuario_po=self.projeto.usuario_po,
+            titulo="Outro Projeto",
+            descricao="Outra Descrição",
+        )
+        url_outro_projeto = reverse(
+            "document-reprocess",
+            kwargs={
+                "project_id": outro_projeto.pk,
+                "document_id": self.documento.pk,
+            },
+        )
+        response = self.client.post(url_outro_projeto)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_reprocessa_documento_sem_arquivo_retorna_400(self):
+        doc_sem_arquivo = Documento.objects.create(
+            projeto=self.projeto,
+            nome="sem_arquivo.txt",
+            tipo="txt",
+            estado="erro",
+        )
+        url_sem_arquivo = reverse(
+            "document-reprocess",
+            kwargs={
+                "project_id": self.projeto.pk,
+                "document_id": doc_sem_arquivo.pk,
+            },
+        )
+        response = self.client.post(url_sem_arquivo)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.data)
+
+    def test_reprocessa_documento_ja_em_processamento_retorna_409(self):
+        self.documento.estado = "processando"
+        self.documento.save(update_fields=["estado"])
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("error", response.data)
