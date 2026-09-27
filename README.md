@@ -157,11 +157,16 @@ cd AI4PO
 Crie o arquivo `.env` na raiz do diretório `api`:
 
 ```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+
+SECRET_KEY="sua-chave-secreta"
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1,backend
 
 Configurações do Banco de Dados PostgreSQL (vetorial)
 POSTGRES_DB=ai4po
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
+POSTGRES_PASSWORD=sua-senha
 
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=ai4po-model
@@ -230,6 +235,14 @@ Para rodar um modelo:
 
 ```bash
 ollama run ai4po-model
+```
+
+> [!IMPORTANT]
+> Resolução para possível erro de geração de embeddings
+
+Caso apareça um erro parecido com `Serviço de embeddings indisponível em http://host.docker.internal:11434: 404 Client Error: Not Found for url: http://host.docker.internal:11434/api/embed` na tela de envio de documentos, rodar o seguinte comando no terminal:
+```bash
+ollama pull nomic-embed-text
 ```
 
 ---
