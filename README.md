@@ -188,6 +188,15 @@ Ou, para executar em segundo plano:
 docker compose up --build -d
 ```
 
+Gere as migrations e crie um super usuário:
+
+```bash
+docker compose exec backend python manage.py migrate
+```
+```bash
+docker compose exec backend python manage.py createsuperuser
+```
+
 Isso iniciará os principais serviços da aplicação:
 
 - **Frontend:** `http://localhost:3000`
