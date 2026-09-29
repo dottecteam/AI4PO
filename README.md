@@ -141,26 +141,35 @@ A maneira recomendada de executar o ecossistema do **AI4PO** é utilizando Docke
 
 - **Docker** instalado
 - **Docker Compose** disponível
+- **Ollama** instalado localmente
 - Git instalado
 - Arquivo `.env` configurado
 
 ## 2. Clonar o projeto
 
 ```bash
-git clone <URL_DO_REPOSITORIO>
+git clone https://github.com/dottecteam/AI4PO.git
 cd AI4PO
 ```
 
 ## 3. Configurar as variáveis de ambiente
 
-Crie o arquivo `.env` na raiz do projeto:
+Crie o arquivo `.env` na raiz do diretório `api`:
 
 ```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+
+SECRET_KEY="sua-chave-secreta"
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1,backend
+
+Configurações do Banco de Dados PostgreSQL (vetorial)
 POSTGRES_DB=ai4po
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
+POSTGRES_PASSWORD=sua-senha
 
-OLLAMA_URL=http://ollama:11434
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=ai4po-model
 ```
 
 > Não versione o arquivo `.env`. Utilize um `.env.example` para documentar as variáveis necessárias.
@@ -179,12 +188,20 @@ Ou, para executar em segundo plano:
 docker compose up --build -d
 ```
 
+Gere as migrations e crie um super usuário:
+
+```bash
+docker compose exec backend python manage.py migrate
+```
+```bash
+docker compose exec backend python manage.py createsuperuser
+```
+
 Isso iniciará os principais serviços da aplicação:
 
 - **Frontend:** `http://localhost:3000`
 - **Backend:** `http://localhost:8000`
 - **PostgreSQL:** `localhost:5432`
-- **Ollama:** `http://localhost:11434`
 
 ## 5. Verificar os containers
 
@@ -202,6 +219,39 @@ Para encerrar os serviços:
 
 ```bash
 docker compose down
+```
+
+## 6.Utilizando o Ollama 
+
+Para ver quais modelos foram carregados:
+
+```bash
+ollama list
+```
+
+Para adicionar um novo modelo:
+
+```bash
+ollama pull nome_do_modelo
+```
+Para criar um modelo personalizado (sem alucinação):
+```bash
+create ai4po-model -f ./Modelfile
+```
+Obs: no arquivo /Ai4PO/Modelfile alterar o tipo de modelo que está na sua máquina (ex: llama3.2:1b)
+
+Para rodar um modelo:
+
+```bash
+ollama run ai4po-model
+```
+
+> [!IMPORTANT]
+> Resolução para possível erro de geração de embeddings
+
+Caso apareça um erro parecido com `Serviço de embeddings indisponível em http://host.docker.internal:11434: 404 Client Error: Not Found for url: http://host.docker.internal:11434/api/embed` na tela de envio de documentos, rodar o seguinte comando no terminal:
+```bash
+ollama pull nomic-embed-text
 ```
 
 ---
