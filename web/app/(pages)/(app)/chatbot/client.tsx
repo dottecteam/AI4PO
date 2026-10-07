@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { exportarConversaPDF } from "@/app/services/API/chat"
 
 const extensoes = [".txt", ".md"]
 const tamanho_max = 10 * 1024 * 1024
@@ -43,6 +44,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
   const [conversaId, setConversaId] = useState<number | null>(
     conversaIdInicial ?? null,
   )
+  const [exportando, setExportando] = useState(false)
   const inputArquivoRef = useRef<HTMLInputElement>(null)
   const fimMensagensRef = useRef<HTMLDivElement>(null)
 
@@ -193,6 +195,19 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     if (event.key === "Enter") enviarMensagem()
   }
 
+  const exportarConversa = async () => {
+    if (!conversaId || exportando) return
+    try {
+      setExportando(true)
+      await exportarConversaPDF(conversaId)
+    } catch (error) {
+      console.error("Erro ao exportar:", error)
+      alert("Não foi possível exportar a conversa.")
+    } finally {
+      setExportando(false)
+    }
+  }
+
   return (
     <div className="w-full h-full flex flex-col flex-1 bg-background">
       {/* Header do Chat */}
@@ -214,6 +229,8 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
         <div className="group relative w-auto h-10 bg-[var(--background)] ml-auto mr-2 rounded-lg flex justify-center items-center px-3 shrink-0 cursor-pointer hover:bg-[var(--surface-base)] transition-colors border border-gray-800/50">
           <button
             type="button"
+            onClick={exportarConversa}
+            disabled={!conversaId || exportando}
             aria-label="Exportar dados"
             className="flex items-center justify-center cursor-pointer"
           >
@@ -225,6 +242,11 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
             className="pointer-events-none absolute left-1/2 top-full -translate-x-1/2 mt-2 whitespace-nowrap bg-[var(--surface-elevated)] text-white text-xs px-2.5 py-1.5 rounded-md opacity-0 scale-95 transition-all duration-200 group-hover:opacity-100 group-hover:scale-100 font-medium shadow-lg z-50 border border-gray-800"
           >
             Exportar dados
+            {conversaId
+              ? exportando
+                ? "Gerando PDF..."
+                : "Exportar PDF"
+              : "Envie uma mensagem para exportar"}
           </span>
         </div>
 
