@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Send, Paperclip, ChevronDown, Funnel, FileText, X } from "lucide-react"
+import { Send, Paperclip, ChevronDown, Funnel, FileText, X, ArrowDownToLine } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -142,6 +142,17 @@ function ChatBot() {
             {/* Pontinho verde de volta e com pulso! */}
             <div className="bg-green-500 w-2.5 h-2.5 rounded-full shrink-0 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
             <span className="hidden sm:inline">Contexto ativo: Base de Conhecimentos</span>
+          </span>
+        </div>
+
+        {/* Botão de exportação */}
+        <div className="group relative w-auto h-10 bg-[var(--background)] ml-auto mr-2 rounded-lg flex justify-center items-center px-3 shrink-0 cursor-pointer hover:bg-[var(--surface-base)] transition-colors border border-gray-800/50">
+          <button type="button" aria-label="Exportar dados" className="flex items-center justify-center cursor-pointer">
+            <ArrowDownToLine size={20} className="text-white" />
+          </button>
+
+          <span role="tooltip" className="pointer-events-none absolute left-1/2 top-full -translate-x-1/2 mt-2 whitespace-nowrap bg-[var(--surface-elevated)] text-white text-xs px-2.5 py-1.5 rounded-md opacity-0 scale-95 transition-all duration-200 group-hover:opacity-100 group-hover:scale-100 font-medium shadow-lg z-50 border border-gray-800">
+            Exportar dados
           </span>
         </div>
         
