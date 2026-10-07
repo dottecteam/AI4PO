@@ -8,6 +8,12 @@ from django.core.files.storage import default_storage
 from django.test import TestCase, override_settings
 from unittest.mock import MagicMock, patch
 import requests
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from rest_framework.test import APIClient, APITestCase
+
+from .models import Conversa, MensagemChat
+
 
 from ai.indexing import (
     SOBREPOSICAO_CHUNK,
@@ -217,3 +223,35 @@ class IndexacaoDeDocumentoTests(TestCase):
              patch('ai.indexing.gerar_embeddings', return_value=[[0.1] * 768]):
             with self.assertRaises(FalhaDeEmbeddingError):
                 indexar_documento(documento)
+
+
+class ExportarPDFTests(APITestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(email="a@a.com", nome="Usuário A", password="123456")
+        self.outro = User.objects.create_user(email="b@b.com", nome="Usuário B", password="123456")
+
+        self.conversa = Conversa.objects.create(usuario_po=self.user, titulo="Teste")
+        MensagemChat.objects.create(conversa=self.conversa, papel="user", conteudo="Olá, ação", anexo_nome="doc.txt")
+        MensagemChat.objects.create(conversa=self.conversa, papel="assistant", conteudo="Resposta")
+
+        self.client = APIClient()
+        self.url = reverse("conversa-exportar-pdf", args=[self.conversa.pk])
+
+    def test_exporta_pdf(self):
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res["Content-Type"], "application/pdf")
+        self.assertTrue(res.content.startswith(b"%PDF"))
+
+    def test_exige_login(self):
+        res = self.client.get(self.url)
+        self.assertIn(res.status_code, (401, 403))
+
+    def test_nao_exporta_conversa_de_outro_usuario(self):
+        self.client.force_authenticate(self.user)
+        self.assertEqual(self.client.get(self.url).status_code, 200)
+
+        self.client.force_authenticate(self.outro)
+        self.assertEqual(self.client.get(self.url).status_code, 404)

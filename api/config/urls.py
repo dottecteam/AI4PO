@@ -26,7 +26,6 @@ urlpatterns = [
     path("api/auth/", include("users.urls")),
     path('api/', include('projects.urls')),
     path("api/", include("ai.urls")),
-    path("api/", include('chat.urls'))
 ]
 
 # Task #3-4: em desenvolvimento (DEBUG=True), o proprio Django serve os

@@ -44,6 +44,16 @@
         text-transform: uppercase;
         margin-bottom: 4px;
       }
+      .hora {
+        font-weight: normal;
+        color: #888;
+        margin-left: 6px;
+      }
+      .anexo {
+        font-size: 9pt;
+        color: #555;
+        margin-bottom: 4px;
+      }
       .conteudo {
         white-space: pre-wrap;
       }
@@ -54,10 +64,14 @@
     <div class="meta">Exportado em {{ agora|date:"d/m/Y H:i" }}</div>
 
     {% for m in mensagens %}
-    <div class="msg {{ m.role }}">
+    <div class="msg {{ m.papel }}">
       <div class="autor">
-        {% if m.role == "user" %}Você{% else %}Assistente{% endif %}
+        {% if m.papel == "user" %}Você{% else %}AI4PO{% endif %}
+        <span class="hora">{{ m.criado_em|date:"d/m/Y H:i" }}</span>
       </div>
+      {% if m.anexo_nome %}
+      <div class="anexo">Anexo: {{ m.anexo_nome }}</div>
+      {% endif %}
       <div class="conteudo">{{ m.conteudo }}</div>
     </div>
     {% endfor %}
