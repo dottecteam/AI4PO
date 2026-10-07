@@ -14,6 +14,8 @@ from pathlib import Path
 
 from decouple import AutoConfig
 
+from datetime import timedelta
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -95,6 +97,8 @@ AUTH_USER_MODEL = 'users.UsuarioPO'
 
 SIMPLE_JWT = {
     "USER_ID_FIELD": "id_po",
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=2),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
 
 
