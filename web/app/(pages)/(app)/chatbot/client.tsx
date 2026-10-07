@@ -20,6 +20,13 @@ type MensagemApi = {
   anexo_nome: string
 }
 
+function getCookie(name: string) {
+  return document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(name + "="))
+    ?.split("=")[1];
+}
+
 function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
   const [mensagem, setMensagem] = useState("")
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
@@ -115,8 +122,9 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     setMensagem("")
     setCarregando(true)
 
-    try {
+     try {
       let response
+      const csrfToken = getCookie("csrftoken") ?? ""
 
       if (arquivoParaEnvio) {
         const formData = new FormData()
@@ -127,16 +135,20 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
         response = await fetch("http://localhost:8000/api/chat/", {
           method: "POST",
           credentials: "include",
+          headers: { "X-CSRFToken": csrfToken }, // sem Content-Type: o navegador define o boundary
           body: formData,
         })
       } else {
         response = await fetch("http://localhost:8000/api/chat/", {
           method: "POST",
           credentials: "include",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken,
+          },
           body: JSON.stringify({
             message: mensagemUsuario,
-            conversa_id: conversaId, // null na primeira mensagem; o backend cria a conversa
+            conversa_id: conversaId,
           }),
         })
       }
