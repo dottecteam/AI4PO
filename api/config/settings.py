@@ -78,6 +78,7 @@ INSTALLED_APPS = [
     'meetings',
     'backlog',
     'ai',
+    'chat',
 ]
 
 

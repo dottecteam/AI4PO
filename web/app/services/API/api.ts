@@ -19,6 +19,22 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return response.json()
 }
 
+async function apiFetchBlob(
+  path: string,
+  options?: RequestInit,
+): Promise<Blob> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    credentials: "include", // envia o cookie JWT
+    ...options,
+  })
+
+  if (!response.ok) {
+    throw new Error(`Erro ${response.status} ao acessar ${path}`)
+  }
+
+  return response.blob()
+}
+
 export const api = {
   get: <T>(path: string) =>
     apiFetch<T>(path, {
@@ -50,4 +66,6 @@ export const api = {
     apiFetch<T>(path, {
       method: "DELETE",
     }),
+
+  getBlob: (path: string) => apiFetchBlob(path),
 }
