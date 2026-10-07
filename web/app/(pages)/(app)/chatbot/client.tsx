@@ -141,7 +141,7 @@ function ChatBot() {
           <span className="flex items-center gap-2 text-secondary text-xs sm:text-sm">
             {/* Pontinho verde de volta e com pulso! */}
             <div className="bg-green-500 w-2.5 h-2.5 rounded-full shrink-0 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-            <span className="hidden sm:inline">Contexto ativo: Base de Conhecimentos</span>
+            <span className="hidden sm:inline"><span className="font-bold">Contexto ativo:</span> Base de Conhecimentos</span>
           </span>
         </div>
 
@@ -158,7 +158,7 @@ function ChatBot() {
         
         {/* Botão de Filtro */}
         <div className="w-auto h-10 bg-[var(--surface-elevated)] rounded-lg flex justify-center items-center px-3 shrink-0 cursor-pointer hover:bg-[var(--surface-base)] transition-colors border border-gray-800/50">
-          <button type="button" className="flex items-center justify-center p-1 pr-2 border-r border-gray-700">
+          <button type="button" className="flex items-center justify-center p-1 pr-2 border-r border-gray-700 cursor-pointer">
             <ChevronDown size={20} className="text-white" />
           </button>
           <div className="flex flex-row gap-2 items-center pl-2">
@@ -234,7 +234,7 @@ function ChatBot() {
               className="w-full h-12 md:h-14 bg-[var(--surface-elevated)] outline-none rounded-xl pl-4 pr-12 text-sm sm:text-base text-white focus:ring-2 focus:ring-primary border border-gray-700/50 transition duration-200"
             />
             <input ref={inputArquivoRef} type="file" accept={extensoes.join(",")} onChange={arquivoSelecionado} className="hidden" />
-            <button type="button" onClick={abrirSeletorDeArquivo} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-700/50 rounded-lg transition-colors">
+            <button type="button" onClick={abrirSeletorDeArquivo} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer">
               <Paperclip size={20} className="text-secondary hover:text-white" />
             </button>
           </div>
@@ -242,7 +242,7 @@ function ChatBot() {
             type="button"
             onClick={enviarMensagem}
             disabled={carregando || (!mensagem.trim() && anexos.length === 0)}
-            className="w-12 h-12 md:w-14 md:h-14 bg-primary rounded-xl flex items-center justify-center hover:bg-primary-dark transition-colors duration-200 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+            className="w-12 h-12 md:w-14 md:h-14 bg-primary rounded-xl flex items-center justify-center hover:bg-primary-dark transition-colors duration-200 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer"
           >
             <Send size={20} className="text-white" />
           </button>
