@@ -2,123 +2,367 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
+    <title>{{ conversa.titulo|default:"Conversa" }}</title>
     <style>
+      :root {
+        --primary: #ef7541;
+        --primary-soft: #fef1ea;
+        --primary-line: #f6c3a9;
+        --secondary: #010812;
+        --text: #1b2230;
+        --muted: #6b7280;
+        --line: #e5e7eb;
+        --bg-assistant: #f5f6f8;
+      }
+
       @page {
         size: A4;
-        margin: 2cm;
+        margin: 2.4cm 1.8cm 2.2cm;
+
+        @top-left {
+          content: string(titulo);
+          font-size: 8.5pt;
+          color: #6b7280;
+          border-bottom: 0.75pt solid #ef7541;
+          padding-bottom: 6pt;
+          vertical-align: bottom;
+        }
+        @top-right {
+          content: "AI4PO";
+          font-size: 8.5pt;
+          font-weight: bold;
+          color: #ef7541;
+          letter-spacing: 1.5pt;
+          border-bottom: 0.75pt solid #ef7541;
+          padding-bottom: 6pt;
+          vertical-align: bottom;
+        }
+        @bottom-left {
+          content: "Documento gerado automaticamente pelo AI4PO";
+          font-size: 8pt;
+          color: #9ca3af;
+        }
         @bottom-right {
-          content: counter(page) " / " counter(pages);
-          font-size: 9pt;
-          color: #888;
+          content: "Página " counter(page) " de " counter(pages);
+          font-size: 8pt;
+          color: #9ca3af;
         }
       }
+
+      @page :first {
+        @top-left {
+          content: none;
+          border: none;
+        }
+        @top-right {
+          content: none;
+          border: none;
+        }
+      }
+
       body {
-        font-family: sans-serif;
-        font-size: 11pt;
-        color: #222;
+        font-family:
+          "Helvetica Neue", Arial, "Liberation Sans", "DejaVu Sans", sans-serif;
+        font-size: 10.5pt;
+        line-height: 1.5;
+        color: var(--text);
+        margin: 0;
       }
-      h1 {
-        font-size: 18pt;
-        margin-bottom: 4px;
+
+      .topo {
+        background: var(--secondary);
+        color: #fff;
+        margin: -2.4cm -1.8cm 22pt;
+        padding: 0.9cm 1.8cm 0.7cm;
+        border-bottom: 4pt solid var(--primary);
       }
-      .meta {
-        color: #777;
-        font-size: 9pt;
-        margin-bottom: 24px;
+      .topo table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .topo td {
+        padding: 0;
+        vertical-align: middle;
+      }
+
+      .logo {
+        height: 34pt;
+        width: auto;
+      }
+      .logo-fallback {
+        display: inline-block;
+        background: var(--primary);
+        color: #fff;
+        font-weight: bold;
+        font-size: 13pt;
+        letter-spacing: 1.5pt;
+        padding: 6pt 12pt;
+        border-radius: 5pt;
+      }
+      .selo-cel {
+        text-align: right;
+      }
+      .selo {
+        display: inline-block;
+        color: var(--primary);
+        border: 0.75pt solid var(--primary);
+        border-radius: 20pt;
+        font-size: 7.5pt;
+        font-weight: bold;
+        letter-spacing: 1.2pt;
+        text-transform: uppercase;
+        padding: 3pt 10pt;
+      }
+
+      h1.titulo {
+        string-set: titulo content();
+        font-size: 20pt;
+        line-height: 1.2;
+        font-weight: bold;
+        color: #fff;
+        margin: 18pt 0 14pt;
+      }
+
+      .meta-tab {
+        border-top: 0.5pt solid #1e2a3d;
+      }
+      .meta-tab td {
+        padding: 10pt 12pt 0 0;
+        vertical-align: top;
+      }
+      .rot {
+        display: block;
+        font-size: 7pt;
+        font-weight: bold;
+        letter-spacing: 1pt;
+        text-transform: uppercase;
+        color: var(--primary);
+        margin-bottom: 2pt;
+      }
+      .val {
+        display: block;
+        font-size: 9.5pt;
+        color: #e5e7eb;
       }
 
       .msg {
-        margin-bottom: 14px;
-        padding: 10px 12px;
-        border-radius: 6px;
-        page-break-inside: avoid;
+        margin: 0 0 12pt;
+        padding: 10pt 14pt 11pt;
+        border-radius: 4pt;
+        break-inside: avoid;
       }
       .msg.assistant {
-        page-break-inside: auto;
+        break-inside: auto;
       }
-      .user {
-        background: #eef3ff;
+
+      .msg.user {
+        background: var(--primary-soft);
+        border-left: 3.5pt solid var(--primary);
       }
-      .assistant {
-        background: #f4f4f4;
+      .msg.assistant {
+        background: var(--bg-assistant);
+        border-left: 3.5pt solid var(--secondary);
+      }
+
+      .msg-cab {
+        margin-bottom: 6pt;
+      }
+      .msg-cab::after {
+        content: "";
+        display: block;
+        clear: both;
       }
 
       .autor {
+        float: left;
+        font-size: 8pt;
         font-weight: bold;
-        font-size: 9pt;
+        letter-spacing: 1pt;
         text-transform: uppercase;
-        margin-bottom: 4px;
       }
+      .autor::before {
+        content: "";
+        display: inline-block;
+        width: 6pt;
+        height: 6pt;
+        border-radius: 50%;
+        margin-right: 5pt;
+      }
+      .user .autor {
+        color: #c2501b;
+      }
+      .user .autor::before {
+        background: var(--primary);
+      }
+      .assistant .autor {
+        color: var(--secondary);
+      }
+      .assistant .autor::before {
+        background: var(--secondary);
+      }
+
       .hora {
-        font-weight: normal;
-        color: #888;
-        margin-left: 6px;
+        float: right;
+        font-size: 7.5pt;
+        color: var(--muted);
       }
+
       .anexo {
-        font-size: 9pt;
-        color: #555;
-        margin-bottom: 4px;
+        display: inline-block;
+        background: #fff;
+        border: 0.75pt solid var(--primary-line);
+        color: #b9501f;
+        font-size: 8pt;
+        padding: 2pt 8pt;
+        border-radius: 10pt;
+        margin-bottom: 6pt;
       }
 
       .conteudo {
         white-space: pre-wrap;
       }
 
+      .md > :first-child {
+        margin-top: 0;
+      }
+      .md > :last-child {
+        margin-bottom: 0;
+      }
       .md p {
-        margin: 0 0 8px;
+        margin: 0 0 7pt;
       }
       .md ul,
       .md ol {
-        margin: 0 0 8px;
-        padding-left: 20px;
+        margin: 0 0 7pt;
+        padding-left: 18pt;
       }
       .md li {
-        margin-bottom: 3px;
+        margin-bottom: 2pt;
+      }
+      .md strong {
+        color: var(--secondary);
       }
       .md h1,
       .md h2,
       .md h3,
       .md h4 {
-        margin: 12px 0 6px;
-        font-size: 12pt;
+        color: var(--secondary);
+        margin: 12pt 0 5pt;
+        font-size: 11.5pt;
+        break-after: avoid;
+      }
+      .md h1,
+      .md h2 {
+        padding-bottom: 3pt;
+        border-bottom: 1pt solid var(--primary-line);
+      }
+      .md a {
+        color: #c2501b;
+      }
+      .md blockquote {
+        margin: 0 0 7pt;
+        padding: 2pt 0 2pt 10pt;
+        border-left: 2.5pt solid var(--primary);
+        color: #4b5563;
       }
       .md code {
-        font-family: monospace;
-        font-size: 9.5pt;
-        background: #e6e6e6;
-        padding: 1px 4px;
-        border-radius: 3px;
+        font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+        font-size: 9pt;
+        background: var(--primary-soft);
+        color: #b9501f;
+        padding: 1pt 4pt;
+        border-radius: 3pt;
       }
       .md pre {
-        background: #e6e6e6;
-        padding: 8px;
-        border-radius: 4px;
+        background: var(--secondary);
+        color: #f3f4f6;
+        padding: 8pt 10pt;
+        border-radius: 4pt;
         white-space: pre-wrap;
+        margin: 0 0 8pt;
       }
       .md pre code {
         background: none;
+        color: inherit;
         padding: 0;
+        font-size: 8.5pt;
       }
       .md table {
         border-collapse: collapse;
-        margin-bottom: 8px;
+        width: 100%;
+        margin: 0 0 8pt;
       }
-      .md th,
+      .md th {
+        background: var(--secondary);
+        color: #fff;
+        text-align: left;
+        font-size: 9pt;
+        padding: 4pt 8pt;
+        border: 0.5pt solid var(--secondary);
+      }
       .md td {
-        border: 1px solid #bbb;
-        padding: 4px 8px;
-        font-size: 10pt;
+        font-size: 9.5pt;
+        padding: 4pt 8pt;
+        border: 0.5pt solid #d1d5db;
+        background: #fff;
       }
     </style>
   </head>
   <body>
-    <h1>{{ conversa.titulo|default:"Conversa" }}</h1>
-    <div class="meta">Exportado em {{ agora|date:"d/m/Y H:i" }}</div>
+    <header class="topo">
+      <table>
+        <tr>
+          <td>
+            {% if logo %}
+            <img class="logo" src="{{ logo }}" alt="AI4PO" />
+            {% else %}
+            <span class="logo-fallback">AI4PO</span>
+            {% endif %}
+          </td>
+          <td class="selo-cel">
+            <span class="selo">Exportação de conversa</span>
+          </td>
+        </tr>
+      </table>
+
+      <h1 class="titulo">{{ conversa.titulo|default:"Conversa" }}</h1>
+
+      <table class="meta-tab">
+        <tr>
+          <td>
+            <span class="rot">Exportado em</span>
+            <span class="val">{{ agora|date:"d/m/Y \à\s H:i" }}</span>
+          </td>
+          {% if usuario_nome %}
+          <td>
+            <span class="rot">Exportado por</span>
+            <span class="val">{{ usuario_nome }}</span>
+          </td>
+          {% endif %}
+          <td>
+            <span class="rot">Conversa iniciada</span>
+            <span class="val">{{ conversa.criado_em|date:"d/m/Y H:i" }}</span>
+          </td>
+          <td>
+            <span class="rot">Mensagens</span>
+            <span class="val">{{ total_mensagens }}</span>
+          </td>
+          {% if conversa.projeto %}
+          <td>
+            <span class="rot">Projeto</span>
+            <span class="val">{{ conversa.projeto }}</span>
+          </td>
+          {% endif %}
+        </tr>
+      </table>
+    </header>
 
     {% for m in mensagens %}
     <div class="msg {{ m.papel }}">
-      <div class="autor">
-        {% if m.papel == "user" %}Você{% else %}AI4PO{% endif %}
+      <div class="msg-cab">
+        <span class="autor">
+          {% if m.papel == "user" %}{{ usuario_nome|default:"Você" }}{% endif %}
+        </span>
         <span class="hora">{{ m.criado_em|date:"d/m/Y H:i" }}</span>
       </div>
 
