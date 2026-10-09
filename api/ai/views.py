@@ -11,6 +11,7 @@ from ai.retrieval import responder_com_base_vetorial, responder_com_documento
 from ai.indexing import FalhaDeEmbeddingError
 from .history import carregar_historico
 from .models import Conversa, MensagemChat
+from .titulo import gerar_titulo
 
 OLLAMA_URL = config("OLLAMA_URL", default="http://host.docker.internal:11434")
 MODEL = config("OLLAMA_MODEL", default="llama3.2:3b")
@@ -82,6 +83,7 @@ class ChatView(APIView):
             message = request.data.get("message", "")
             projeto_id = request.data.get("projeto_id")
             conversa_id = request.data.get("conversa_id")
+            nova_conversa = not conversa_id  # só gera título na primeira troca
             arquivo = request.FILES.get("arquivo")
 
             documento_texto = ""
@@ -177,7 +179,7 @@ class ChatView(APIView):
 
             else:
                 # Caso ele não utilize ferramentas (Bate-papo)
-                resposta_final = response_message.get("content") or""
+                resposta_final = response_message.get("content") or ""
 
                 # Filtro de Segurança
                 if resposta_final.strip().startswith('{"name":') or resposta_final.strip().startswith('{"'):
@@ -193,6 +195,14 @@ class ChatView(APIView):
                 MensagemChat(conversa=conversa, papel="user", conteudo=message, anexo_nome=anexo_nome),
                 MensagemChat(conversa=conversa, papel="assistant", conteudo=resposta_final),
             ])
+
+            # na primeira troca, pede ao Ollama um título curto.
+            # Se falhar, fica o título provisório (primeiros 60 caracteres da pergunta).
+            if nova_conversa and message:
+                titulo = gerar_titulo(message, resposta_final)
+                if titulo:
+                    conversa.titulo = titulo
+
             conversa.save()  # auto_now atualiza atualizado_em, pra conversa subir na sidebar
 
             return JsonResponse({"message": resposta_final, "conversa_id": conversa.id})
