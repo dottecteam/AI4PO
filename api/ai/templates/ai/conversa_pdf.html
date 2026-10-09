@@ -26,11 +26,15 @@
         font-size: 9pt;
         margin-bottom: 24px;
       }
+
       .msg {
         margin-bottom: 14px;
         padding: 10px 12px;
         border-radius: 6px;
         page-break-inside: avoid;
+      }
+      .msg.assistant {
+        page-break-inside: auto;
       }
       .user {
         background: #eef3ff;
@@ -38,6 +42,7 @@
       .assistant {
         background: #f4f4f4;
       }
+
       .autor {
         font-weight: bold;
         font-size: 9pt;
@@ -54,8 +59,55 @@
         color: #555;
         margin-bottom: 4px;
       }
+
       .conteudo {
         white-space: pre-wrap;
+      }
+
+      .md p {
+        margin: 0 0 8px;
+      }
+      .md ul,
+      .md ol {
+        margin: 0 0 8px;
+        padding-left: 20px;
+      }
+      .md li {
+        margin-bottom: 3px;
+      }
+      .md h1,
+      .md h2,
+      .md h3,
+      .md h4 {
+        margin: 12px 0 6px;
+        font-size: 12pt;
+      }
+      .md code {
+        font-family: monospace;
+        font-size: 9.5pt;
+        background: #e6e6e6;
+        padding: 1px 4px;
+        border-radius: 3px;
+      }
+      .md pre {
+        background: #e6e6e6;
+        padding: 8px;
+        border-radius: 4px;
+        white-space: pre-wrap;
+      }
+      .md pre code {
+        background: none;
+        padding: 0;
+      }
+      .md table {
+        border-collapse: collapse;
+        margin-bottom: 8px;
+      }
+      .md th,
+      .md td {
+        border: 1px solid #bbb;
+        padding: 4px 8px;
+        font-size: 10pt;
       }
     </style>
   </head>
@@ -69,10 +121,14 @@
         {% if m.papel == "user" %}Você{% else %}AI4PO{% endif %}
         <span class="hora">{{ m.criado_em|date:"d/m/Y H:i" }}</span>
       </div>
+
       {% if m.anexo_nome %}
       <div class="anexo">Anexo: {{ m.anexo_nome }}</div>
-      {% endif %}
+      {% endif %} {% if m.papel == "assistant" %}
+      <div class="md">{{ m.html|safe }}</div>
+      {% else %}
       <div class="conteudo">{{ m.conteudo }}</div>
+      {% endif %}
     </div>
     {% endfor %}
   </body>

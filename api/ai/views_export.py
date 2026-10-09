@@ -8,6 +8,7 @@ from weasyprint import HTML
 
 from users.authentication import CookieJWTAuthentication
 from .models import Conversa
+from .pdf_markdown import md_para_html
 
 
 class ConversaExportarPDFView(APIView):
@@ -16,7 +17,10 @@ class ConversaExportarPDFView(APIView):
 
     def get(self, request, conversa_id):
         conversa = get_object_or_404(Conversa, pk=conversa_id, usuario_po=request.user)
-        mensagens = conversa.mensagens.all()
+        mensagens = list(conversa.mensagens.all())
+        for m in mensagens:
+            if m.papel == "assistant":
+                m.html = md_para_html(m.conteudo)
 
         html = render_to_string("ai/conversa_pdf.html", {
             "conversa": conversa,
