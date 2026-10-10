@@ -21,18 +21,19 @@ export default function TabelaEpicos() {
     const [modalAberto, setModalAberto] = useState(false)
     const router = useRouter();
 
-    useEffect(() => {
-        async function carregarEpicos() {
-            if (!projeto) return;
-            try {
-                const dados = await epicoService.listarPorProjeto(projeto.id);
-                setEpicos(dados);
-            } catch (erro) {
-                console.error("Erro ao carregar epicos:", erro);
-            } finally {
-                setCarregando(false);
-            }
+    async function carregarEpicos() {
+        if (!projeto) return;
+        try {
+            const dados = await epicoService.listarPorProjeto(projeto.id);
+            setEpicos(dados);
+        } catch (erro) {
+            console.error("Erro ao carregar epicos:", erro);
+        } finally {
+            setCarregando(false);
         }
+    }
+
+    useEffect(() => {
         carregarEpicos();
     }, [projeto]);
 
@@ -45,7 +46,7 @@ export default function TabelaEpicos() {
 
     return (
         <DropdownSection label="Épicos" onAdd={() => setModalAberto(true)}>
-            <EpicoCadastro aberto={modalAberto} onFechar={() => setModalAberto(false)} />
+            <EpicoCadastro aberto={modalAberto} onFechar={() => setModalAberto(false)} onCriado={carregarEpicos} />
 
             <Searchbar valor={termo} onAtualizar={setTermo} placeholder="Pesquise por um épicos..."
                 className="flex items-center w-full bg-gray-900 m-2 text-sm py-2 focus:bg-gray-800 h-6 rounded-md"
@@ -67,7 +68,7 @@ export default function TabelaEpicos() {
                         (<tr key={epico.id}
                             className="[&>*]:px-2 border-b border-gray-700 hover:border-gray-500"
                             onClick={() => {
-                                router.push(`/app/projetos/${projeto.id}/epicos/${epico.id}`)
+                                router.push(`/projetos/${projeto.id}/epicos/${epico.id}`)
                             }}>
                             <td>{epico.titulo}</td>
                             <td>{new Date(epico.createdAt).toLocaleDateString('pt-BR')}</td>

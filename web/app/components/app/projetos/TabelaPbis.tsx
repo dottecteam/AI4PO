@@ -23,18 +23,19 @@ export default function TabelaPbis() {
     const [modalAberto, setModalAberto] = useState(false)
     const router = useRouter();
 
-    useEffect(() => {
-        async function carregarPbis() {
-            if (!feature) return;
-            try {
-                const dados = await pbiService.listarPorFeature(feature.id);
-                setPbis(dados);
-            } catch (erro) {
-                console.error("Erro ao carregar pbis:", erro);
-            } finally {
-                setCarregando(false);
-            }
+    async function carregarPbis() {
+        if (!feature) return;
+        try {
+            const dados = await pbiService.listarPorFeature(feature.id);
+            setPbis(dados);
+        } catch (erro) {
+            console.error("Erro ao carregar pbis:", erro);
+        } finally {
+            setCarregando(false);
         }
+    }
+
+    useEffect(() => {
         carregarPbis();
     }, [feature]);
 
@@ -47,7 +48,7 @@ export default function TabelaPbis() {
 
     return (
         <DropdownSection label="PBIs" onAdd={() => setModalAberto(true)}>
-            <PbiCadastro aberto={modalAberto} onFechar={() => setModalAberto(false)} />
+            <PbiCadastro aberto={modalAberto} onFechar={() => setModalAberto(false)} onCriado={carregarPbis} />
 
             <Searchbar valor={termo} onAtualizar={setTermo} placeholder="Pesquise por um PBI..."
                 className="flex items-center w-full bg-gray-900 m-2 text-sm py-2 focus:bg-gray-800 h-6 rounded-md"
@@ -66,7 +67,7 @@ export default function TabelaPbis() {
                     (<tr key={pbi.id}
                         className="[&>*]:px-2 border-b border-gray-700 hover:border-gray-500"
                         onClick={() => {
-                            router.push(`/app/projetos/${projeto.id}/epicos/${epico.id}/features/${feature.id}/pbis/${pbi.id}`);
+                            router.push(`/projetos/${projeto.id}/epicos/${epico.id}/features/${feature.id}/pbis/${pbi.id}`);
                         }}>
                         <td>{pbi.titulo}</td>
                         <td>{new Date(pbi.createdAt).toLocaleDateString('pt-BR')}</td>

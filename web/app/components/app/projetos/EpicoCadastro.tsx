@@ -7,9 +7,10 @@ import { useState } from "react";
 interface EpicoCadastroProps {
     aberto: boolean;
     onFechar: () => void;
+    onCriado: () => void;
 }
 
-export default function EpicoCadastro({ aberto, onFechar }: EpicoCadastroProps) {
+export default function EpicoCadastro({ aberto, onFechar, onCriado }: EpicoCadastroProps) {
     const projeto = useProjetoAtual();
 
     const [titulo, setTitulo] = useState("");
@@ -46,6 +47,7 @@ export default function EpicoCadastro({ aberto, onFechar }: EpicoCadastroProps) 
             setEscopoMacro("");
             setCriteriosAceitacao("");
 
+            onCriado();
             onFechar();
         } catch (erro) {
             console.error("Erro ao cadastrar epico:", erro);

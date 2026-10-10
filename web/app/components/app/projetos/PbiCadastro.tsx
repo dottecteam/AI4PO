@@ -13,9 +13,10 @@ interface Cenario {
 interface PbiCadastroProps {
     aberto: boolean;
     onFechar: () => void;
+    onCriado: () => void;
 }
 
-export default function PbiCadastro({ aberto, onFechar }: PbiCadastroProps) {
+export default function PbiCadastro({ aberto, onFechar, onCriado }: PbiCadastroProps) {
     const feature = useFeatureAtual();
 
     const [titulo, setTitulo] = useState("");
@@ -74,6 +75,7 @@ export default function PbiCadastro({ aberto, onFechar }: PbiCadastroProps) {
             setCenarios([]);
             setAvisoErro(false);
 
+            onCriado();
             onFechar();
         } catch (erro) {
             console.error("Erro ao cadastrar pbi:", erro);

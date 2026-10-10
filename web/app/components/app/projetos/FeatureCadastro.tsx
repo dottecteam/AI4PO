@@ -7,9 +7,10 @@ import { useState } from "react";
 interface FeatureCadastroProps {
     aberto: boolean;
     onFechar: () => void;
+    onCriado: () => void;
 }
 
-export default function FeatureCadastro({ aberto, onFechar }: FeatureCadastroProps) {
+export default function FeatureCadastro({ aberto, onFechar, onCriado }: FeatureCadastroProps) {
     const epico = useEpicoAtual();
 
     const [titulo, setTitulo] = useState("");
@@ -40,6 +41,7 @@ export default function FeatureCadastro({ aberto, onFechar }: FeatureCadastroPro
             setObjetivo("");
             setCriteriosAceitacao("");
 
+            onCriado();
             onFechar();
         } catch (erro) {
             console.error("Erro ao cadastrar feature:", erro);

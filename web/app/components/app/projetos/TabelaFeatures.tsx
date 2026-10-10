@@ -21,18 +21,19 @@ export default function TabelaFeatures() {
     const [modalAberto, setModalAberto] = useState(false)
     const router = useRouter();
 
-    useEffect(() => {
-        async function carregarFeatures() {
-            if (!epico) return;
-            try {
-                const dados = await featureService.listarPorEpico(epico.id);
-                setFeatures(dados);
-            } catch (erro) {
-                console.error("Erro ao carregar features:", erro);
-            } finally {
-                setCarregando(false);
-            }
+    async function carregarFeatures() {
+        if (!epico) return;
+        try {
+            const dados = await featureService.listarPorEpico(epico.id);
+            setFeatures(dados);
+        } catch (erro) {
+            console.error("Erro ao carregar features:", erro);
+        } finally {
+            setCarregando(false);
         }
+    }
+
+    useEffect(() => {
         carregarFeatures();
     }, [epico]);
 
@@ -45,7 +46,7 @@ export default function TabelaFeatures() {
 
     return (
         <DropdownSection label="Features" onAdd={() => setModalAberto(true)}>
-            <FeatureCadastro aberto={modalAberto} onFechar={() => setModalAberto(false)} />
+            <FeatureCadastro aberto={modalAberto} onFechar={() => setModalAberto(false)} onCriado={carregarFeatures} />
 
             <Searchbar valor={termo} onAtualizar={setTermo} placeholder="Pesquise por uma feature..."
                 className="flex items-center w-full bg-gray-900 m-2 text-sm py-2 focus:bg-gray-800 h-6 rounded-md"
@@ -66,7 +67,7 @@ export default function TabelaFeatures() {
                         (<tr key={feat.id}
                             className="[&>*]:px-2 border-b border-gray-700 hover:border-gray-500"
                             onClick={() => {
-                                router.push(`/app/projetos/${projeto.id}/epicos/${epico.id}/features/${feat.id}/`)
+                                router.push(`/projetos/${projeto.id}/epicos/${epico.id}/features/${feat.id}/`)
                             }}>
                             <td>{feat.titulo}</td>
                             <td>{new Date(feat.createdAt).toLocaleDateString('pt-BR')}</td>
