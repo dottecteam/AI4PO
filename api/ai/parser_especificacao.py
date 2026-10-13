@@ -1,46 +1,72 @@
 """
-Converte o texto de uma especificação, escrito no modelo com cabeçalhos
-fixos, no dicionário que o checklist (#8-1) espera. Determinístico, sem IA.
+Converte o texto de uma especificação no dicionário que o checklist (#8-1)
+espera. Determinístico, sem IA.
 
-Regras do formato:
-- Um cabeçalho é "Chave: valor" no início da linha (Épico, Feature, PBI,
-  Descrição, Objetivo, Escopo macro, Resultado esperado, Critérios de
-  aceitação, História, Cenário, Dado, Quando, Então).
-- Linhas que não começam com cabeçalho continuam o campo anterior.
-- Itens de lista começam com "-", "*", "•" ou "1.".
-- Dentro de um PBI, "Dado que...", "Quando...", "Então..." também valem
-  sem os dois-pontos.
+Formatos aceitos (podem aparecer misturados):
+
+1. Modelo oficial do assistente (system prompt de Épico/Feature/PBI):
+       ÉPICO — Título
+       Descrição: ...
+       PBI — Verbo no infinitivo + objeto
+       COMO UM ator
+       EU QUERO ação
+       PARA QUE benefício
+       Cenário 1 — Nome
+       DADO que ...
+       QUANDO ...
+       ENTÃO ...
+2. Formato com dois-pontos: "Épico: Título", "História: ...", "Dado: ...".
+
+Regras gerais:
+- Um cabeçalho é "Chave — valor", "Chave - valor" ou "Chave: valor" no início
+  da linha (Épico, Feature, PBI, Descrição, Objetivo, Escopo macro, Resultado
+  esperado, Critérios de aceitação, História, Protótipo, Cenário, Dado,
+  Quando, Então, Regras e observações).
+- Linhas sem cabeçalho continuam o campo anterior. Itens de lista começam
+  com "-", "*", "•" ou "1.".
+- Dentro de um PBI, COMO UM / EU QUERO / PARA QUE (sem separador) formam a
+  história, e DADO / QUANDO / ENTÃO também valem sem separador.
+- Lacunas contam como campo vazio: "[não consta no contexto]" e campos do
+  modelo ainda não preenchidos ("[Título da iniciativa]"). Assim o checklist
+  aponta a falta em vez de aprová-la.
+- Decoração de Markdown (#, **, `, cercas ``` e linhas ---) é ignorada.
 """
 
 import re
 import unicodedata
 
-MODELO_ESPECIFICACAO = """Épico: <título do épico>
-Descrição: <o que o épico entrega, em nível macro>
-Objetivo: <por que ele existe>
+MODELO_ESPECIFICACAO = """ÉPICO — [Título da iniciativa]
+Descrição: [contexto do que será entregue, público afetado e abrangência]
+Objetivo: [valor ou resultado pretendido e por que o Épico é necessário]
 Escopo macro:
-- <capacidade 1>
-- <capacidade 2>
-Resultado esperado: <resultado final para o negócio ou usuário>
+- [grande grupo de capacidades 1]
+- [grande grupo de capacidades 2]
+Resultado esperado: [estado desejado após a conclusão]
 Critérios de aceitação:
-- <critério macro 1>
+- [condição ampla e verificável 1]
+- [condição ampla e verificável 2]
 
-Feature: <título da feature>
-Descrição: <o que a feature entrega>
-Objetivo: <por que ela existe>
+FEATURE — [Título da capacidade]
+Descrição: [capacidade funcional, contexto e principais comportamentos]
+Objetivo: [benefício funcional ou operacional esperado]
 Critérios de aceitação:
-- <regra geral 1>
+- [regra geral 1]
+- [regra geral 2]
 
-PBI: <verbo no infinitivo + objeto>
-História: Como <papel>, eu quero <ação>, para que <benefício>.
-Cenário: <nome do cenário principal>
-Dado: <estado inicial>
-Quando: <ação>
-Então: <resultado esperado>
-Cenário: <nome do cenário de erro>
-Dado: <estado inicial>
-Quando: <ação>
-Então: <resultado esperado>"""
+PBI — [Verbo no infinitivo + objeto da ação]
+COMO UM [tipo de usuário ou ator]
+EU QUERO [ação ou capacidade desejada]
+PARA QUE [benefício, resultado ou motivo de negócio]
+Protótipo ou referência visual: [quando houver interface relevante]
+Cenário 1 — [Nome do cenário]
+DADO que [estado inicial ou contexto]
+QUANDO [ação ou evento]
+ENTÃO [comportamento ou resultado esperado]
+Cenário 2 — [Nome do cenário de erro]
+DADO que [contexto alternativo]
+QUANDO [ação ou evento]
+ENTÃO [resultado esperado]
+Regras e observações: [somente se necessário]"""
 
 _CHAVES = {
     "epico": "epico",
@@ -56,23 +82,42 @@ _CHAVES = {
     "criterios": "criterios_aceitacao",
     "historia": "historia",
     "historia do usuario": "historia",
+    "prototipo ou referencia visual": "prototipo",
+    "prototipo": "prototipo",
+    "referencia visual": "prototipo",
     "cenario": "cenario",
     "dado": "dado",
     "quando": "quando",
     "entao": "entao",
+    "regras e observacoes": "regras_observacoes",
+    "observacoes": "regras_observacoes",
 }
 _CAMPOS_LISTA = {"escopo_macro", "criterios_aceitacao"}
 _ESTRUTURAIS = {"epico", "feature", "pbi"}
 _GHERKIN = ("dado", "quando", "entao")
 _ROTULO_GHERKIN = {"dado": "DADO", "quando": "QUANDO", "entao": "ENTÃO"}
 
-_RX_CABECALHO = re.compile(r"^(?P<chave>[^:\n]{1,40}?)\s*:\s*(?P<valor>.*)$")
+# "Chave — valor", "Chave – valor", "Chave - valor" (hífen com espaços) ou "Chave: valor".
+# A chave para no primeiro separador; o resto da linha é o valor.
+_RX_CABECALHO = re.compile(
+    r"^(?P<chave>[^:—–\n]{1,45}?)\s*(?::|—|–|\s-\s)\s*(?P<valor>.*)$"
+)
 _RX_ITEM = re.compile(r"^(?:[-*•]|\d+[.)])\s+(?P<texto>.*)$")
-_RX_GHERKIN_SEM_DOIS_PONTOS = re.compile(
+_RX_GHERKIN_SEM_SEPARADOR = re.compile(
     r"^(?P<chave>dado|quando|então|entao)\b[\s,:\-]*(?P<valor>.*)$",
     re.IGNORECASE,
 )
-#checklist aceita como critério em texto.
+# História em linhas soltas: COMO UM ... / EU QUERO ... / PARA QUE ...
+_RX_HISTORIA_LINHA = re.compile(
+    r"^(?P<kw>como(?:\s+(?:um|uma))?|eu\s+quero|eu\s+desejo|quero|desejo"
+    r"|para\s+que)\b(?P<resto>.*)$",
+    re.IGNORECASE,
+)
+# Lacuna: "[não consta no contexto]" ou campo do modelo ainda em branco
+# ("[Título da iniciativa]", "que [estado inicial]").
+_RX_PLACEHOLDER = re.compile(r"^(?:que\s+)?\[[^\]]*\]\.?$", re.IGNORECASE)
+_RX_REGUA = re.compile(r"^\s*(?:[-_*=]\s*){3,}$")
+# Cenário completo escrito numa linha só: o checklist aceita como critério em texto.
 _RX_CENARIO_INLINE = re.compile(r"\bdado\b.*?\bquando\b.*?\bentao\b", re.DOTALL)
 
 
@@ -82,16 +127,25 @@ def _sem_acento(texto: str) -> str:
 
 
 def _limpar_linha(linha: str) -> str:
+    """Tira a decoração de Markdown que atrapalha o reconhecimento."""
     linha = re.sub(r"^\s*#{1,6}\s*", "", linha)
-    return linha.replace("**", "").replace("__", "").strip()
+    linha = re.sub(r"^\s*>\s?", "", linha)
+    return linha.replace("**", "").replace("__", "").replace("`", "").strip()
+
+
+def _valor(texto: str) -> str:
+    """Valor do campo; lacunas ("[não consta no contexto]") viram vazio."""
+    texto = (texto or "").strip()
+    return "" if _RX_PLACEHOLDER.match(texto) else texto
 
 
 def _cabecalho(linha: str):
+    """(chave_canonica, valor) se a linha começa com um cabeçalho conhecido."""
     m = _RX_CABECALHO.match(linha)
     if not m:
         return None
     chave = re.sub(r"\s+", " ", _sem_acento(m.group("chave")).lower()).strip()
-    chave = re.sub(r"[\s#\d.\-]+$", "", chave)
+    chave = re.sub(r"[\s#\d.\-]+$", "", chave)  # "Cenário 1", "PBI-2" -> "cenario", "pbi"
     canonica = _CHAVES.get(chave)
     if canonica is None:
         return None
@@ -101,7 +155,9 @@ def _cabecalho(linha: str):
 def _continuar(campo, linha: str) -> None:
     container, chave, eh_lista = campo
     m = _RX_ITEM.match(linha)
-    texto = m.group("texto").strip() if m else linha
+    texto = _valor(m.group("texto") if m else linha)
+    if not texto:  # lacuna não acrescenta nada
+        return
     if eh_lista:
         itens = container[chave]
         if m or not itens:
@@ -114,6 +170,7 @@ def _continuar(campo, linha: str) -> None:
 
 
 def parece_especificacao(texto: str) -> bool:
+    """True se o texto tem ao menos um Épico/Feature/PBI e mais um cabeçalho."""
     estruturais = total = 0
     for bruta in (texto or "").splitlines():
         cab = _cabecalho(_limpar_linha(bruta))
@@ -125,30 +182,44 @@ def parece_especificacao(texto: str) -> bool:
 
 
 def extrair_especificacao(texto: str):
+    """Devolve (dados, observacoes): o dicionário do checklist e avisos sobre
+    trechos que não puderam ser associados a nenhum item."""
     dados = {"epicos": []}
     observacoes = []
     soltas = 0
     epico = feature = pbi = cenario = None
-    campo = None
+    campo = None  # (container, chave, eh_lista) do campo que continua na próxima linha
 
     for bruta in (texto or "").splitlines():
+        if bruta.strip().startswith("```") or _RX_REGUA.match(bruta):
+            continue
         linha = _limpar_linha(bruta)
         if not linha:
             continue
 
         cab = _cabecalho(linha)
         chave, valor = cab if cab else (None, None)
+        if valor is not None:
+            valor = _valor(valor)
 
-        # Dentro de um PBI: "Dado que...", "Quando...", "Então..." sem dois-pontos.
         if chave is None and pbi is not None:
-            g = _RX_GHERKIN_SEM_DOIS_PONTOS.match(linha)
+            # História em linhas soltas: COMO UM / EU QUERO / PARA QUE.
+            h = _RX_HISTORIA_LINHA.match(linha)
+            if h and cenario is None and (campo is None or campo[1] == "historia"):
+                if _valor(h.group("resto")):  # linha com lacuna não entra na história
+                    pbi["historia"] = f"{pbi.get('historia', '')} {linha}".strip()
+                    campo = (pbi, "historia", False)
+                continue
+
+            # "Dado que...", "Quando...", "Então..." sem separador.
+            g = _RX_GHERKIN_SEM_SEPARADOR.match(linha)
             if g:
                 if _RX_CENARIO_INLINE.search(_sem_acento(linha).lower()):
                     pbi.setdefault("criterios_aceitacao", []).append(linha)
                     campo = (pbi, "criterios_aceitacao", True)
                     continue
                 chave = _sem_acento(g.group("chave")).lower()
-                valor = g.group("valor").strip()
+                valor = _valor(g.group("valor"))
 
         if chave == "epico":
             epico = {"titulo": valor, "features": []}
@@ -200,7 +271,7 @@ def extrair_especificacao(texto: str):
             cenario[chave] = valor
             campo = (cenario, chave, False)
 
-        elif chave is not None:  # descricao, objetivo, historia, listas...
+        elif chave is not None:  # descricao, objetivo, historia, prototipo, listas...
             rotulo = chave.replace("_", " ")
             if chave == "historia" and pbi is None:
                 observacoes.append("Uma história fora de um PBI foi ignorada.")
@@ -221,7 +292,8 @@ def extrair_especificacao(texto: str):
                     lista.append(valor)
                 campo = (alvo, chave, True)
             else:
-                alvo[chave] = valor
+                if valor:
+                    alvo[chave] = valor
                 campo = (alvo, chave, False)
 
         else:  # linha sem cabeçalho: continua o campo anterior

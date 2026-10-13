@@ -377,7 +377,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
               value={mensagem}
               onChange={(event) => setMensagem(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Pergunte sobre regras, decisões arquiteturais ou use /validar..."
+              placeholder="Pergunte sobre regras, decisões arquiteturais ou use /validar para validar requisitos levantados..."
               className="block w-full min-h-12 md:min-h-14 max-h-40 resize-none overflow-y-auto bg-(--surface-elevated) outline-none rounded-xl pl-4 pr-12 py-3 md:py-4 text-sm sm:text-base text-white focus:ring-2 focus:ring-primary border border-gray-700/50 transition duration-200"
             />
             <input
