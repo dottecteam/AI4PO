@@ -13,6 +13,9 @@ import {
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { exportarConversaPDF } from "@/app/services/API/chat"
+import CartaoValidacao, {
+  type Validacao,
+} from "@/app/components/app/CartaoValidacao"
 
 const extensoes = [".txt", ".md"]
 const tamanho_max = 10 * 1024 * 1024
@@ -21,6 +24,7 @@ type Mensagem = {
   tipo: "usuario" | "agente" | "anexo"
   texto: string
   anexo?: string
+  validacao?: Validacao
 }
 
 type MensagemApi = {
@@ -47,6 +51,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
   const [exportando, setExportando] = useState(false)
   const inputArquivoRef = useRef<HTMLInputElement>(null)
   const fimMensagensRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Ao abrir uma conversa existente (vinda da sidebar), carrega o histórico salvo
   useEffect(() => {
@@ -73,6 +78,14 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
   useEffect(() => {
     fimMensagensRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [mensagens, carregando])
+
+  // Faz o campo de texto crescer com o conteúdo (até 160px, depois rola)
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = "auto"
+    el.style.height = `${Math.min(el.scrollHeight + 2, 160)}px`
+  }, [mensagem])
 
   const abrirSeletorDeArquivo = () => {
     inputArquivoRef.current?.click()
@@ -179,7 +192,14 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       }
 
       setConversaId(data.conversa_id)
-      setMensagens((prev) => [...prev, { tipo: "agente", texto: data.message }])
+      setMensagens((prev) => [
+        ...prev,
+        {
+          tipo: "agente",
+          texto: data.message,
+          validacao: data.validacao ?? undefined, // cartão da validação
+        },
+      ])
     } catch (error) {
       console.error("Erro:", error)
       setMensagens((prev) => [
@@ -191,8 +211,16 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     }
   }
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") enviarMensagem()
+  // Enter envia; Shift+Enter quebra a linha (necessário para colar especificações)
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.nativeEvent.isComposing
+    ) {
+      event.preventDefault()
+      enviarMensagem()
+    }
   }
 
   const exportarConversa = async () => {
@@ -288,6 +316,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
                   </span>
                 </div>
               )}
+              {msg.validacao && <CartaoValidacao validacao={msg.validacao} />}
               {msg.texto &&
                 (msg.tipo === "agente" ? (
                   <div className="markdown-mensagem prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-pre:bg-(--surface-base) prose-code:text-primary-light">
@@ -296,7 +325,9 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
                     </ReactMarkdown>
                   </div>
                 ) : (
-                  msg.texto
+                  <span className="whitespace-pre-wrap wrap-break-word">
+                    {msg.texto}
+                  </span>
                 ))}
             </div>
           </div>
@@ -338,15 +369,16 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           </div>
         )}
 
-        <div className="w-full max-w-4xl mx-auto flex items-center gap-3">
+        <div className="w-full max-w-4xl mx-auto flex items-end gap-3">
           <div className="relative flex-1">
-            <input
-              type="text"
+            <textarea
+              ref={textareaRef}
+              rows={1}
               value={mensagem}
               onChange={(event) => setMensagem(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Pergunte sobre regras, decisões arquiteturais..."
-              className="w-full h-12 md:h-14 bg-(--surface-elevated) outline-none rounded-xl pl-4 pr-12 text-sm sm:text-base text-white focus:ring-2 focus:ring-primary border border-gray-700/50 transition duration-200"
+              placeholder="Pergunte sobre regras, decisões arquiteturais ou use /validar..."
+              className="block w-full min-h-12 md:min-h-14 max-h-40 resize-none overflow-y-auto bg-(--surface-elevated) outline-none rounded-xl pl-4 pr-12 py-3 md:py-4 text-sm sm:text-base text-white focus:ring-2 focus:ring-primary border border-gray-700/50 transition duration-200"
             />
             <input
               ref={inputArquivoRef}
@@ -358,7 +390,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
             <button
               type="button"
               onClick={abrirSeletorDeArquivo}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer"
+              className="absolute right-2 bottom-1.5 md:bottom-2.5 p-2 hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer"
             >
               <Paperclip
                 size={20}
