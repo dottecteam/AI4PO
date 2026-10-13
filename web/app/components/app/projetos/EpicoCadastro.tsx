@@ -3,6 +3,7 @@
 import { useProjetoAtual } from "@/app/contexts/ProjetoContext";
 import { epicoService } from "@/app/services/API/projeto/EpicoService";
 import { useState } from "react";
+import { InputLista } from "../../InputLista";
 
 interface EpicoCadastroProps {
     aberto: boolean;
@@ -17,9 +18,43 @@ export default function EpicoCadastro({ aberto, onFechar, onCriado }: EpicoCadas
     const [descricao, setDescricao] = useState("");
     const [objetivo, setObjetivo] = useState("");
     const [resultadoEsperado, setResultadoEsperado] = useState("");
-    const [escopoMacro, setEscopoMacro] = useState("");
-    const [criteriosAceitacao, setCriteriosAceitacao] = useState("");
+    const [escopoMacro, setEscopoMacro] = useState<string[]>([]);
+    const [criteriosAceitacao, setCriteriosAceitacao] = useState<string[]>([]);
     const [avisoErro, setAvisoErro] = useState(false);
+
+    function adicionarEscopoMacro() {
+        setEscopoMacro((atuais) => [...atuais, ""]);
+    }
+
+    function alterarEscopoMacro(index: number, valor: string) {
+        setEscopoMacro((atuais) =>
+            atuais.map((escopo, i) =>
+                i === index ? valor : escopo)
+        );
+    }
+
+    function removerEscopoMacro(index: number) {
+        setEscopoMacro((atuais) =>
+            atuais.filter((_, i) => i !== index));
+    }
+
+    function adicionarCriterioAceitacao() {
+        setCriteriosAceitacao((atuais) => [...atuais, ""]);
+    }
+
+    function alterarCriteriosAceitacao(index: number, valor: string) {
+        setCriteriosAceitacao((atuais) =>
+            atuais.map((criterio, i) =>
+                i === index ? valor : criterio)
+        );
+    }
+
+    function removerCriterioAceitacao(index: number) {
+        setCriteriosAceitacao((atuais) =>
+            atuais.filter((_, i) => i !== index)
+        );
+    }
+
 
     async function cadastrarEpico() {
         if (!projeto) return;
@@ -36,19 +71,19 @@ export default function EpicoCadastro({ aberto, onFechar, onCriado }: EpicoCadas
                 descricao,
                 objetivo,
                 resultadoEsperado,
-                escopoMacro: escopoMacro.split("\n").filter(Boolean),
-                criteriosAceitacao: criteriosAceitacao.split("\n").filter(Boolean),
+                escopoMacro: escopoMacro,
+                criteriosAceitacao: criteriosAceitacao,
             });
 
             setTitulo("");
             setDescricao("");
             setObjetivo("");
             setResultadoEsperado("");
-            setEscopoMacro("");
-            setCriteriosAceitacao("");
+            setEscopoMacro([]);
+            setCriteriosAceitacao([]);
 
-            onCriado();
             onFechar();
+            onCriado();
         } catch (erro) {
             console.error("Erro ao cadastrar epico:", erro);
         }
@@ -145,37 +180,39 @@ export default function EpicoCadastro({ aberto, onFechar, onCriado }: EpicoCadas
                         />
                     </div>
 
-                    {/* Escopo macro + Critérios de aceitação */}
-                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-
-                        <div>
-                            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
-                                Escopo macro (um item por linha)
-                            </label>
-
-                            <textarea
-                                value={escopoMacro}
-                                onChange={(e) => setEscopoMacro(e.target.value)}
-                                rows={4}
-                                className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
-                            />
+                    {/* Escopo macro */}
+                    <section>
+                        <div className="mb-4 flex items-center border-l border-[#EF7541] pl-2">
+                            <h3 className="text-sm font-semibold uppercase tracking-wider text-[#EF7541]">
+                                Escopo Macro
+                            </h3>
                         </div>
+                        <InputLista
+                            rotuloItem="Capacidade Macro"
+                            textoVazio="Nenhuma capacidade macro adicionada."
+                            textoBotao="Adicionar Capacidade"
+                            itens={escopoMacro}
+                            onAdicionar={adicionarEscopoMacro}
+                            onAlterar={alterarEscopoMacro}
+                            onRemover={removerEscopoMacro} />
+                    </section>
 
-                        <div>
-                            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
-                                Critérios de aceitação (um item por linha)
-                            </label>
-
-                            <textarea
-                                value={criteriosAceitacao}
-                                onChange={(e) => setCriteriosAceitacao(e.target.value)}
-                                rows={4}
-                                className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
-                            />
+                    {/* Critérios de Aceitação */}
+                    <section>
+                        <div className="mb-4 flex items-center border-l border-[#EF7541] pl-2">
+                            <h3 className="text-sm font-semibold uppercase tracking-wider text-[#EF7541]">
+                                Critérios de Aceitação
+                            </h3>
                         </div>
-
-                    </div>
-
+                        <InputLista
+                            rotuloItem="Critério"
+                            textoVazio="Nenhum critério de aceitação adicionado."
+                            textoBotao="Adicionar Critério"
+                            itens={criteriosAceitacao}
+                            onAdicionar={adicionarCriterioAceitacao}
+                            onAlterar={alterarCriteriosAceitacao}
+                            onRemover={removerCriterioAceitacao} />
+                    </section>
                 </div>
 
                 {avisoErro && (
@@ -202,6 +239,6 @@ export default function EpicoCadastro({ aberto, onFechar, onCriado }: EpicoCadas
                 </div>
 
             </div>
-        </div>
+        </div >
     );
 }

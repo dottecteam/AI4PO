@@ -3,6 +3,7 @@
 import { featureService } from "@/app/services/API/projeto/FeatureService";
 import { useEpicoAtual } from "@/app/contexts/EpicoContext";
 import { useState } from "react";
+import { InputLista } from "../../InputLista";
 
 interface FeatureCadastroProps {
     aberto: boolean;
@@ -16,8 +17,27 @@ export default function FeatureCadastro({ aberto, onFechar, onCriado }: FeatureC
     const [titulo, setTitulo] = useState("");
     const [descricao, setDescricao] = useState("");
     const [objetivo, setObjetivo] = useState("");
-    const [criteriosAceitacao, setCriteriosAceitacao] = useState("");
+    const [criteriosAceitacao, setCriteriosAceitacao] = useState<string[]>([]);
     const [avisoErro, setAvisoErro] = useState(false);
+
+
+    function adicionarCriterioAceitacao() {
+        setCriteriosAceitacao((atuais) => [...atuais, ""]);
+    }
+
+    function alterarCriteriosAceitacao(index: number, valor: string) {
+        setCriteriosAceitacao((atuais) =>
+            atuais.map((criterio, i) =>
+                i === index ? valor : criterio)
+        );
+    }
+
+    function removerCriterioAceitacao(index: number) {
+        setCriteriosAceitacao((atuais) =>
+            atuais.filter((_, i) => i !== index)
+        );
+    }
+
 
     async function cadastrarFeature() {
         if (!epico) return;
@@ -33,16 +53,16 @@ export default function FeatureCadastro({ aberto, onFechar, onCriado }: FeatureC
                 titulo,
                 descricao,
                 objetivo,
-                criteriosAceitacao: criteriosAceitacao.split("\n").filter(Boolean),
+                criteriosAceitacao: criteriosAceitacao,
             });
 
             setTitulo("");
             setDescricao("");
             setObjetivo("");
-            setCriteriosAceitacao("");
+            setCriteriosAceitacao([]);
 
-            onCriado();
             onFechar();
+            onCriado();
         } catch (erro) {
             console.error("Erro ao cadastrar feature:", erro);
         }
@@ -127,18 +147,20 @@ export default function FeatureCadastro({ aberto, onFechar, onCriado }: FeatureC
 
                     {/* Critérios de aceitação */}
                     <div>
-                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
-                            Critérios de aceitação (um item por linha)
-                        </label>
-
-                        <textarea
-                            value={criteriosAceitacao}
-                            onChange={(e) => setCriteriosAceitacao(e.target.value)}
-                            rows={4}
-                            className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
-                        />
+                        <div className="mb-4 flex items-center border-l border-[#EF7541] pl-2">
+                            <h3 className="text-sm font-semibold uppercase tracking-wider text-[#EF7541]">
+                                Critérios de Aceitação
+                            </h3>
+                        </div>
+                        <InputLista
+                            rotuloItem="Critério"
+                            textoVazio="Nenhum critério de aceitação adicionado."
+                            textoBotao="Adicionar Critério"
+                            itens={criteriosAceitacao}
+                            onAdicionar={adicionarCriterioAceitacao}
+                            onAlterar={alterarCriteriosAceitacao}
+                            onRemover={removerCriterioAceitacao} />
                     </div>
-
                 </div>
 
                 {avisoErro && (
@@ -165,6 +187,6 @@ export default function FeatureCadastro({ aberto, onFechar, onCriado }: FeatureC
                 </div>
 
             </div>
-        </div>
+        </div >
     );
 }

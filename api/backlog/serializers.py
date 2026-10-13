@@ -44,7 +44,7 @@ class PBISerializer(serializers.ModelSerializer):
     cenarios = CenarioSerializer(many=True, read_only=True)
 
     createdAt = serializers.DateTimeField(source='criado_em', read_only=True)
-    regras = serializers.CharField(source='regras_observacoes', required=False)
+    regras = serializers.CharField(source='regras_observacoes', required=False, allow_blank = True)
 
     class Meta:
         model = PBI
@@ -69,7 +69,7 @@ class PBISerializer(serializers.ModelSerializer):
             userstory_como=user_story.get('como', ''),
             userstory_quero=user_story.get('quero', ''),
             userstory_paraque=user_story.get('paraQue', ''),
-            regras_observacoes=validated_data.get('regras'),
+            regras_observacoes=validated_data.get('regras_observacoes'),
         )
 
         # Cria cada cenário já vinculado a esse PBI (relação 1:N)
@@ -89,7 +89,7 @@ class PBISerializer(serializers.ModelSerializer):
         cenarios_data = self.initial_data.get('cenarios')
 
         instance.titulo = validated_data.get('titulo', instance.titulo)
-        instance.regras_observacoes = validated_data.get('regras', instance.regras_observacoes)
+        instance.regras_observacoes = validated_data.get('regras_observacoes', instance.regras_observacoes)
 
         if user_story is not None:
             instance.userstory_como = user_story.get('como', instance.userstory_como)
