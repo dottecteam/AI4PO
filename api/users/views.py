@@ -8,6 +8,8 @@ from rest_framework.throttling import AnonRateThrottle
 from django.conf import settings
 from .permissions import IsAdmin
 
+from django.middleware.csrf import get_token
+
 # httponly: JS do navegador não acessa o cookie (proteção contra XSS)
 # secure: só envia o cookie em HTTPS (desativar só em dev local sem HTTPS)
 # samesite="Lax": mitiga CSRF básico
@@ -38,10 +40,11 @@ class LoginView(APIView):
         if user is None:
             return Response({"detail": "Credenciais inválidas."}, status=401)
 
-        refresh = RefreshToken.for_user(user)  # gera o par access + refresh
+        refresh = RefreshToken.for_user(user)
         response = Response(serialize_user(user), status=200)
         response.set_cookie("access_token", str(refresh.access_token), **COOKIE_KWARGS)
         response.set_cookie("refresh_token", str(refresh), **COOKIE_KWARGS)
+        get_token(request)  # faz o Django emitir o cookie csrftoken nessa resposta
         return response
 
 
@@ -63,6 +66,7 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]  # só acessa quem tem cookie válido
 
     def get(self, request):
+        get_token(request)
         return Response(serialize_user(request.user))
 
 
