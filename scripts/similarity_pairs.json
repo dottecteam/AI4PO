@@ -1,0 +1,212 @@
+[
+  {
+    "id": "equivalent-01",
+    "category": "equivalent",
+    "similar": true,
+    "a": "Como usuário, quero entrar com meu e-mail e senha para acessar o sistema de acordo com meu perfil.",
+    "b": "Permitir que o usuário faça login na plataforma informando as credenciais cadastradas."
+  },
+  {
+    "id": "equivalent-02",
+    "category": "equivalent",
+    "similar": true,
+    "a": "Como PO, desejo editar meus projetos para manter as informações atualizadas.",
+    "b": "O Product Owner deve conseguir alterar e salvar os dados de um projeto existente."
+  },
+  {
+    "id": "equivalent-03",
+    "category": "equivalent",
+    "similar": true,
+    "a": "Como PO, quero enviar documentos do projeto para que sejam processados e adicionados à base de conhecimento.",
+    "b": "Permitir o upload de arquivos de um projeto para processamento e indexação na base vetorial."
+  },
+  {
+    "id": "equivalent-04",
+    "category": "equivalent",
+    "similar": true,
+    "a": "Como PO, desejo submeter o rascunho de uma especificação para que a IA identifique lacunas com base no histórico da empresa.",
+    "b": "Analisar uma especificação preliminar e apontar informações ausentes usando requisitos de projetos anteriores."
+  },
+  {
+    "id": "equivalent-05",
+    "category": "equivalent",
+    "similar": true,
+    "a": "Como PO, desejo reformatar requisitos para que fiquem no padrão oficial da Pro4Tech.",
+    "b": "Converter um requisito fora do padrão para título no infinitivo, história de usuário e cenários DADO/QUANDO/ENTÃO."
+  },
+  {
+    "id": "equivalent-06",
+    "category": "equivalent",
+    "similar": true,
+    "a": "Como PO, desejo visualizar alertas de requisitos ou integrações semelhantes durante a escrita para evitar duplicação de esforço.",
+    "b": "Avisar o Product Owner enquanto ele escreve quando já existir um requisito semanticamente parecido no histórico."
+  },
+  {
+    "id": "equivalent-07",
+    "category": "equivalent",
+    "similar": true,
+    "a": "Como PO, desejo exportar os requisitos gerados pela IA em formatos padrão.",
+    "b": "Permitir o download dos requisitos criados em um arquivo compatível com as ferramentas de gestão."
+  },
+  {
+    "id": "equivalent-08",
+    "category": "equivalent",
+    "similar": true,
+    "a": "Como administrador, desejo desativar ou excluir o login de um PO preservando seus documentos e histórico.",
+    "b": "Revogar o acesso de um Product Owner sem remover os projetos e registros associados à sua conta."
+  },
+  {
+    "id": "equivalent-09",
+    "category": "equivalent",
+    "similar": true,
+    "a": "Como PO, quero criar, visualizar e editar uma Feature dentro de um projeto.",
+    "b": "O Product Owner deve poder cadastrar e atualizar funcionalidades vinculadas ao projeto."
+  },
+  {
+    "id": "equivalent-10",
+    "category": "equivalent",
+    "similar": true,
+    "a": "Como PO, quero ver as fontes utilizadas pelo Chatbot para verificar a origem das informações.",
+    "b": "Exibir os documentos e projetos que fundamentaram cada resposta fornecida pelo assistente."
+  },
+  {
+    "id": "borderline-01",
+    "category": "same-domain-different-intent",
+    "similar": false,
+    "a": "Autenticar o usuário com e-mail e senha cadastrados.",
+    "b": "Recuperar a senha esquecida enviando um link temporário por e-mail."
+  },
+  {
+    "id": "borderline-02",
+    "category": "same-domain-different-intent",
+    "similar": false,
+    "a": "Editar o nome, a descrição e as datas de um projeto existente.",
+    "b": "Arquivar um projeto concluído para removê-lo da listagem de projetos ativos."
+  },
+  {
+    "id": "borderline-03",
+    "category": "same-domain-different-intent",
+    "similar": false,
+    "a": "Enviar documentos do projeto para processamento e indexação.",
+    "b": "Exportar a especificação do projeto em um arquivo PDF."
+  },
+  {
+    "id": "borderline-04",
+    "category": "same-domain-different-intent",
+    "similar": false,
+    "a": "Analisar um rascunho e sugerir lacunas com base no histórico da empresa.",
+    "b": "Alertar durante a escrita quando houver um requisito semelhante já cadastrado."
+  },
+  {
+    "id": "borderline-05",
+    "category": "same-domain-different-intent",
+    "similar": false,
+    "a": "Reformatar um requisito para o padrão oficial da organização.",
+    "b": "Validar a documentação técnica e listar itens que não seguem o padrão oficial."
+  },
+  {
+    "id": "borderline-06",
+    "category": "same-domain-different-intent",
+    "similar": false,
+    "a": "Cadastrar uma nova Feature dentro de um projeto.",
+    "b": "Cadastrar uma nova PBI dentro de uma Feature existente."
+  },
+  {
+    "id": "borderline-07",
+    "category": "same-domain-different-intent",
+    "similar": false,
+    "a": "Indexar documentos em chunks e armazenar seus embeddings na base vetorial.",
+    "b": "Consultar o Chatbot para obter respostas fundamentadas nos documentos indexados."
+  },
+  {
+    "id": "borderline-08",
+    "category": "same-domain-different-intent",
+    "similar": false,
+    "a": "Desativar o login de um Product Owner que saiu da empresa.",
+    "b": "Alterar o perfil de acesso de um usuário de Product Owner para administrador."
+  },
+  {
+    "id": "borderline-09",
+    "category": "same-domain-different-intent",
+    "similar": false,
+    "a": "Exportar requisitos e cenários em formatos aceitos pelas ferramentas de gestão.",
+    "b": "Visualizar uma prévia da especificação formatada antes de salvá-la."
+  },
+  {
+    "id": "borderline-10",
+    "category": "same-domain-different-intent",
+    "similar": false,
+    "a": "Mostrar as fontes usadas pelo Chatbot em uma resposta.",
+    "b": "Recomendar outros documentos relacionados à pesquisa feita pelo usuário."
+  },
+  {
+    "id": "distinct-01",
+    "category": "distinct",
+    "similar": false,
+    "a": "Autenticar o usuário com e-mail e senha.",
+    "b": "Exportar um relatório de requisitos em formato PDF."
+  },
+  {
+    "id": "distinct-02",
+    "category": "distinct",
+    "similar": false,
+    "a": "Editar as informações de um projeto.",
+    "b": "Desativar o acesso de um usuário que deixou a empresa."
+  },
+  {
+    "id": "distinct-03",
+    "category": "distinct",
+    "similar": false,
+    "a": "Enviar um documento para a base de conhecimento.",
+    "b": "Cadastrar uma nova Feature no backlog do projeto."
+  },
+  {
+    "id": "distinct-04",
+    "category": "distinct",
+    "similar": false,
+    "a": "Identificar lacunas em uma especificação usando inteligência artificial.",
+    "b": "Gerenciar os perfis e as permissões de acesso dos usuários."
+  },
+  {
+    "id": "distinct-05",
+    "category": "distinct",
+    "similar": false,
+    "a": "Reformatar requisitos para o padrão DADO/QUANDO/ENTÃO.",
+    "b": "Gerar embeddings dos documentos para busca vetorial."
+  },
+  {
+    "id": "distinct-06",
+    "category": "distinct",
+    "similar": false,
+    "a": "Alertar sobre requisitos semanticamente semelhantes.",
+    "b": "Baixar a especificação completa em um arquivo editável."
+  },
+  {
+    "id": "distinct-07",
+    "category": "distinct",
+    "similar": false,
+    "a": "Criar e editar uma Feature de um projeto.",
+    "b": "Entrar no sistema utilizando credenciais válidas."
+  },
+  {
+    "id": "distinct-08",
+    "category": "distinct",
+    "similar": false,
+    "a": "Exibir as fontes utilizadas para responder uma pergunta no Chatbot.",
+    "b": "Atualizar o nome e a descrição de um projeto."
+  },
+  {
+    "id": "distinct-09",
+    "category": "distinct",
+    "similar": false,
+    "a": "Exportar requisitos para uma ferramenta externa.",
+    "b": "Enviar um e-mail para recuperação de senha."
+  },
+  {
+    "id": "distinct-10",
+    "category": "distinct",
+    "similar": false,
+    "a": "Revogar o login de um Product Owner inativo.",
+    "b": "Padronizar a estrutura de uma história de usuário."
+  }
+]
