@@ -45,7 +45,7 @@ export default function projetosPage() {
         dataMin: string;
         dataMax: string;
     }>({
-        status: [],
+        status: statusUnicos,
         po: [],
         dataMin: "",
         dataMax: "",
@@ -81,7 +81,7 @@ export default function projetosPage() {
             const dataProjeto = projeto.createdAt.slice(0, 10);
 
             return (
-                (filtros.status.length === 0 || filtros.status.includes(projeto.status)) &&
+                (filtros.status.includes(projeto.status)) &&
                 (filtros.po.length === 0 || filtros.po.includes(projeto.po)) &&
                 (!filtros.dataMin || dataProjeto >= filtros.dataMin) &&
                 (!filtros.dataMax || dataProjeto <= filtros.dataMax)

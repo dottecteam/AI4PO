@@ -63,7 +63,7 @@ export default function PaginaProjeto() {
             const dataDocumento = documento.data.slice(0, 10);
 
             return (
-                (filtros.tipo.length === 0 || filtros.tipo.includes(documento.tipo)) &&
+                (filtros.tipo.includes(documento.tipo)) &&
                 (!filtros.dataMin || dataDocumento >= filtros.dataMin) &&
                 (!filtros.dataMax || dataDocumento <= filtros.dataMax)
             );

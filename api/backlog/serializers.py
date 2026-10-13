@@ -10,9 +10,17 @@ class EpicoSerializer(serializers.ModelSerializer):
     criteriosAceitacao = serializers.ListField(child=serializers.CharField(), source='criterios_de_aceitacao')
     createdAt = serializers.DateTimeField(source='criado_em', read_only=True)
 
+    # Contagens vindas do annotate da view
+    totalFeatures = serializers.IntegerField(source='total_features', read_only=True, default=0)
+    totalPbis = serializers.IntegerField(source='total_pbis', read_only=True, default=0)
+
     class Meta:
         model = Epico
-        fields = ['id', 'titulo', 'descricao', 'objetivo', 'idProjeto', 'escopoMacro', 'resultadoEsperado', 'criteriosAceitacao', 'createdAt']
+        fields = [
+            'id', 'titulo', 'descricao', 'objetivo', 'idProjeto',
+            'escopoMacro', 'resultadoEsperado', 'criteriosAceitacao',
+            'createdAt', 'totalFeatures', 'totalPbis',
+        ]
 
 
 
@@ -22,9 +30,11 @@ class FeatureSerializer(serializers.ModelSerializer):
     criteriosAceitacao = serializers.ListField(child=serializers.CharField(), source='criterios_de_aceitacao')
     createdAt = serializers.DateTimeField(source='criado_em', read_only=True)
 
+    # Contagem vinda da view
+    totalPbis = serializers.IntegerField(source="total_pbis", read_only=True, default=0)
     class Meta:
         model = Feature
-        fields = ['id', 'idEpico', 'titulo', 'descricao', 'objetivo', 'criteriosAceitacao', 'createdAt']
+        fields = ['id', 'idEpico', 'titulo', 'descricao', 'objetivo', 'criteriosAceitacao', 'createdAt', 'totalPbis']
 
 
 class CenarioSerializer(serializers.ModelSerializer):

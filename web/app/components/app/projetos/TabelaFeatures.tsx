@@ -69,9 +69,14 @@ export default function TabelaFeatures() {
                             onClick={() => {
                                 router.push(`/projetos/${projeto.id}/epicos/${epico.id}/features/${feat.id}/`)
                             }}>
+                            {/* Título */}
                             <td>{feat.titulo}</td>
+
+                            {/* Data de criação */}
                             <td>{new Date(feat.createdAt).toLocaleDateString('pt-BR')}</td>
-                            <td>{pbis.filter((pbi) => pbi.idFeature == feat.id).length}</td>
+
+                            {/* Número de PBIs */}
+                            <td>{feat.totalPbis}</td>
                         </tr>))}
                     </tbody>
                 </table>) : (
