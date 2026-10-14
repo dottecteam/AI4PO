@@ -5,23 +5,89 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from scripts import benchmark_similarity
-from scripts.benchmark_similarity import (
+from ai import benchmark_similarity
+from ai.benchmark_similarity import (
     benchmark_pairs,
     choose_threshold,
     cosine_similarity,
     evaluate_threshold,
+    load_pairs_csv,
     operational_threshold,
     request_embeddings,
 )
 
 
 class DatasetIntegrityTests(unittest.TestCase):
-    REPO_ROOT = Path(__file__).resolve().parents[1]
-    DATASET_PATH = REPO_ROOT / "scripts" / "similarity_pairs.json"
+    REPO_ROOT = Path(__file__).resolve().parents[2]
+    DATASET_PATH = (
+        REPO_ROOT
+        / "docs"
+        / "technical-docs"
+        / "resultados-benchmark-similaridade.csv"
+    )
+
+    def test_loads_only_pair_inputs_from_results_csv(self):
+        csv_content = (
+            "id,category,similar,source_a,source_b,similarity,cosine_distance,"
+            "predicted_alert,a,b\n"
+            "eq-01,equivalent,True,backlog.md#1,sprint.md#1,0.91,0.09,True,"
+            "requisito A,requisito B\n"
+            "distinct-01,distinct,False,backlog.md#2,backlog.md#3,0.20,0.80,"
+            "False,requisito C,requisito D\n"
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            dataset_path = Path(temporary_directory) / "resultados.csv"
+            dataset_path.write_text(csv_content, encoding="utf-8")
+
+            pairs = load_pairs_csv(dataset_path)
+
+        self.assertEqual(
+            pairs,
+            [
+                {
+                    "id": "eq-01",
+                    "category": "equivalent",
+                    "similar": True,
+                    "source_a": "backlog.md#1",
+                    "source_b": "sprint.md#1",
+                    "a": "requisito A",
+                    "b": "requisito B",
+                },
+                {
+                    "id": "distinct-01",
+                    "category": "distinct",
+                    "similar": False,
+                    "source_a": "backlog.md#2",
+                    "source_b": "backlog.md#3",
+                    "a": "requisito C",
+                    "b": "requisito D",
+                },
+            ],
+        )
+
+    def test_rejects_results_csv_without_required_pair_columns(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            dataset_path = Path(temporary_directory) / "resultados.csv"
+            dataset_path.write_text("id,similar\neq-01,True\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "required columns"):
+                load_pairs_csv(dataset_path)
+
+    def test_rejects_results_csv_without_pairs(self):
+        csv_header = (
+            "id,category,similar,source_a,source_b,similarity,cosine_distance,"
+            "predicted_alert,a,b\n"
+        )
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            dataset_path = Path(temporary_directory) / "resultados.csv"
+            dataset_path.write_text(csv_header, encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "at least one pair"):
+                load_pairs_csv(dataset_path)
 
     def test_all_pairs_use_verbatim_requirements_from_documented_sources(self):
-        pairs = json.loads(self.DATASET_PATH.read_text(encoding="utf-8"))
+        pairs = load_pairs_csv(self.DATASET_PATH)
 
         self.assertEqual(len(pairs), 30)
         self.assertEqual(
@@ -187,7 +253,7 @@ class BenchmarkTests(unittest.TestCase):
             {"embeddings": [[1.0, 0.0], [0.0, 1.0]]}
         ).encode("utf-8")
 
-        with patch("scripts.benchmark_similarity.urlopen", return_value=response) as urlopen:
+        with patch("ai.benchmark_similarity.urlopen", return_value=response) as urlopen:
             vectors = request_embeddings(
                 ["texto a", "texto b"],
                 base_url="http://localhost:11434",

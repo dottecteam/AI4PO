@@ -1,8 +1,4 @@
-"""Benchmark reproducível do limite de similaridade da task #7-1.
-
-O script usa o mesmo modelo e o mesmo endpoint Ollama do pipeline de
-indexação. Ele depende apenas da biblioteca padrão do Python.
-"""
+"""Benchmark reproducível do limite de similaridade"""
 
 from __future__ import annotations
 
@@ -24,6 +20,16 @@ CSV_FIELDNAMES = [
     "similarity",
     "cosine_distance",
     "predicted_alert",
+    "a",
+    "b",
+]
+
+PAIR_FIELDNAMES = [
+    "id",
+    "category",
+    "similar",
+    "source_a",
+    "source_b",
     "a",
     "b",
 ]
@@ -130,9 +136,6 @@ def operational_threshold(
     """Converte o corte medido em um valor estável para configuração."""
     raw_threshold = float(selection["threshold"])
     if selection["strategy"] != "perfect-separation-midpoint":
-        # Prefere duas casas sem alterar a classificação que selecionou o
-        # melhor F1. Entre opções equivalentes, o maior corte é conservador;
-        # se nenhuma preserva a matriz de confusão, mantém o valor medido.
         raw_metrics = evaluate_threshold(results, raw_threshold)
         rounded_candidates = {
             math.floor((raw_threshold + 1e-12) * 100) / 100,
@@ -228,41 +231,54 @@ def write_results_csv(
         writer.writerows(results)
 
 
+def load_pairs_csv(dataset_path: Path) -> list[dict[str, object]]:
+    """Lê do CSV somente os campos estáveis que definem cada par."""
+    with dataset_path.open(encoding="utf-8-sig", newline="") as dataset_file:
+        reader = csv.DictReader(dataset_file)
+        if not reader.fieldnames or not set(PAIR_FIELDNAMES).issubset(
+            reader.fieldnames
+        ):
+            raise ValueError("dataset CSV is missing required columns")
+        pairs = []
+        for row in reader:
+            similar_value = row["similar"].strip().lower()
+            if similar_value not in {"true", "false"}:
+                raise ValueError(f"invalid similar value: {row['similar']!r}")
+            pairs.append(
+                {
+                    field: similar_value == "true" if field == "similar" else row[field]
+                    for field in PAIR_FIELDNAMES
+                }
+            )
+    if not pairs:
+        raise ValueError("dataset CSV must contain at least one pair")
+    return pairs
+
+
 def main() -> int:
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = Path(__file__).resolve().parents[2]
+    results_path = (
+        repo_root
+        / "docs"
+        / "technical-docs"
+        / "resultados-benchmark-similaridade.csv"
+    )
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--dataset",
         type=Path,
-        default=repo_root / "scripts" / "similarity_pairs.json",
+        default=results_path,
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=repo_root
-        / "docs"
-        / "technical-docs"
-        / "resultados-benchmark-similaridade.csv",
+        default=results_path,
     )
     parser.add_argument("--ollama-url", default="http://localhost:11434")
     parser.add_argument("--model", default="nomic-embed-text")
     args = parser.parse_args()
 
-    pairs = json.loads(args.dataset.read_text(encoding="utf-8"))
-    required_fields = {
-        "id",
-        "category",
-        "similar",
-        "source_a",
-        "source_b",
-        "a",
-        "b",
-    }
-    if not isinstance(pairs, list) or not pairs:
-        raise ValueError("dataset must be a non-empty JSON list")
-    for pair in pairs:
-        if not isinstance(pair, dict) or not required_fields.issubset(pair):
-            raise ValueError(f"invalid pair in dataset: {pair!r}")
+    pairs = load_pairs_csv(args.dataset)
 
     texts = list(dict.fromkeys(str(pair[key]) for pair in pairs for key in ("a", "b")))
     embeddings = request_embeddings(

@@ -69,6 +69,22 @@ Os requisitos foram retirados dos Product Backlogs e Sprint Backlogs já existen
 
 O script calculou a similaridade de cada par e testou diferentes limites.
 
+O benchmark está em
+[`api/ai/benchmark_similarity.py`](../../api/ai/benchmark_similarity.py) e usa
+o próprio
+[`resultados-benchmark-similaridade.csv`](resultados-benchmark-similaridade.csv)
+como entrada e saída. A partir da pasta `api`, ele pode ser executado com:
+
+```powershell
+python -m ai.benchmark_similarity
+```
+
+Os testes do benchmark podem ser executados com:
+
+```powershell
+python -m unittest ai.test_benchmark_similarity -v
+```
+
 Os principais resultados foram:
 
 | Limite | Precisão | Recall | F1 |
