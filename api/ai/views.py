@@ -12,6 +12,7 @@ from ai.indexing import FalhaDeEmbeddingError
 from .history import carregar_historico
 from .models import Conversa, MensagemChat
 from .titulo import gerar_titulo
+from .validacao_chat import MENSAGEM_SEM_MODELO, detectar_especificacao, montar_validacao, para_markdown, resumo_curto
 
 OLLAMA_URL = config("OLLAMA_URL", default="http://host.docker.internal:11434")
 MODEL = config("OLLAMA_MODEL", default="llama3.2:3b")
@@ -128,6 +129,30 @@ class ChatView(APIView):
             conteudo_usuario = message
             if documento_texto:
                 conteudo_usuario += "\n\n[ALERTA INTERNO DO SISTEMA: O usuário anexou um arquivo válido nesta mensagem. Você DEVE acionar a ferramenta 'analisar_documento_anexado' para ler o conteúdo dele antes de responder.]"
+
+             # Validação de especificação (task #8-3): determinística, não passa pelo Ollama.
+            texto_spec = detectar_especificacao(message, documento_texto)
+            if texto_spec is not None:
+                validacao = montar_validacao(texto_spec)
+                if validacao is None:
+                    resposta_md = resposta_curta = MENSAGEM_SEM_MODELO
+                else:
+                    resposta_md = para_markdown(validacao)
+                    resposta_curta = resumo_curto(validacao)
+
+                if not conversa.mensagens.exists():  # conversa nova
+                    conversa.titulo = "Validação de especificação"
+
+                MensagemChat.objects.bulk_create([
+                    MensagemChat(conversa=conversa, papel="user", conteudo=message, anexo_nome=anexo_nome),
+                    MensagemChat(conversa=conversa, papel="assistant", conteudo=resposta_md),
+                ])
+                conversa.save()
+                return JsonResponse({
+                    "message": resposta_curta,
+                    "conversa_id": conversa.id,
+                    "validacao": validacao,
+                })
 
             # histórico vem do banco
             historico = carregar_historico(conversa)
