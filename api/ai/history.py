@@ -1,14 +1,25 @@
 def carregar_historico(conversa, max_msgs=8, max_chars=6000):
     """
-    Janela deslizante: controla quanto do histórico vai pro prompt do Ollama.
-    Limitado por quantidade E por tamanho total, é o tamanho do prompt que
-    pesa na performance, não o banco.
+    Janela deslizante: as N mensagens mais recentes da conversa, limitadas
+    também por tamanho total (o tamanho do prompt é o que pesa no Ollama).
+    Deve ser chamada ANTES de salvar a mensagem atual, que é anexada à parte.
     """
     historico = []
     total = 0
     for m in conversa.mensagens.order_by("-id")[:max_msgs]:
-        total += len(m.conteudo)
+        conteudo = m.conteudo
+        if m.anexo_nome:
+            # o texto do anexo não é persistido; deixa ao menos o rastro dele
+            conteudo += f"\n[Anexo enviado nesta mensagem: {m.anexo_nome}]"
+        total += len(conteudo)
         if total > max_chars:
             break
-        historico.append({"role": m.papel, "content": m.conteudo})
-    return historico[::-1]  # devolve em ordem cronológica
+        historico.append({"role": m.papel, "content": conteudo})
+
+    historico.reverse()  # ordem cronológica
+
+    # A janela nunca deve abrir com resposta do assistente sem a pergunta
+    while historico and historico[0]["role"] != "user":
+        historico.pop(0)
+
+    return historico
