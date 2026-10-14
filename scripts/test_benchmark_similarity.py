@@ -1,7 +1,11 @@
+import csv
 import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from scripts import benchmark_similarity
 from scripts.benchmark_similarity import (
     benchmark_pairs,
     choose_threshold,
@@ -10,6 +14,64 @@ from scripts.benchmark_similarity import (
     operational_threshold,
     request_embeddings,
 )
+
+
+class DatasetIntegrityTests(unittest.TestCase):
+    REPO_ROOT = Path(__file__).resolve().parents[1]
+    DATASET_PATH = REPO_ROOT / "scripts" / "similarity_pairs.json"
+
+    def test_all_pairs_use_verbatim_requirements_from_documented_sources(self):
+        pairs = json.loads(self.DATASET_PATH.read_text(encoding="utf-8"))
+
+        self.assertEqual(len(pairs), 30)
+        self.assertEqual(
+            {category: sum(pair["category"] == category for pair in pairs) for category in {
+                "equivalent",
+                "same-domain-different-intent",
+                "distinct",
+            }},
+            {
+                "equivalent": 10,
+                "same-domain-different-intent": 10,
+                "distinct": 10,
+            },
+        )
+
+        for pair in pairs:
+            with self.subTest(pair=pair["id"]):
+                for text_key, source_key in (("a", "source_a"), ("b", "source_b")):
+                    source_reference = pair[source_key]
+                    source_file, separator, requirement_id = source_reference.partition("#")
+                    self.assertEqual(separator, "#")
+                    self.assertTrue(requirement_id)
+
+                    source_path = self.REPO_ROOT / source_file
+                    source_text = source_path.read_text(encoding="utf-8").replace("**", "")
+                    self.assertIn(pair[text_key], source_text)
+
+    def test_csv_preserves_requirement_sources(self):
+        result = {
+            "id": "equivalent-01",
+            "category": "equivalent",
+            "similar": True,
+            "source_a": "docs/scrum/product-backlog.md#1",
+            "source_b": "docs/scrum/sprint-backlog/sprint-1-backlog.md#1",
+            "similarity": 0.91,
+            "cosine_distance": 0.09,
+            "predicted_alert": True,
+            "a": "requisito A",
+            "b": "requisito B",
+        }
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_path = Path(temporary_directory) / "benchmark.csv"
+            benchmark_similarity.write_results_csv([result], output_path)
+
+            with output_path.open(encoding="utf-8-sig", newline="") as output_file:
+                rows = list(csv.DictReader(output_file))
+
+        self.assertEqual(rows[0]["source_a"], result["source_a"])
+        self.assertEqual(rows[0]["source_b"], result["source_b"])
 
 
 class CosineSimilarityTests(unittest.TestCase):
@@ -96,6 +158,26 @@ class ThresholdTests(unittest.TestCase):
         selection = {"threshold": 0.654449, "strategy": "best-f1"}
 
         self.assertEqual(operational_threshold(selection, self.RESULTS), 0.66)
+
+    def test_rounds_best_f1_down_when_it_preserves_the_selected_classification(self):
+        results = [
+            {"similar": True, "similarity": 0.816867},
+            {"similar": True, "similarity": 0.810202},
+            {"similar": False, "similarity": 0.853015},
+            {"similar": False, "similarity": 0.805000},
+        ]
+        selection = {"threshold": 0.810202, "strategy": "best-f1"}
+
+        self.assertEqual(operational_threshold(selection, results), 0.81)
+
+    def test_preserves_raw_best_f1_cut_when_both_roundings_change_classification(self):
+        results = [
+            {"similar": True, "similarity": 0.654449},
+            {"similar": False, "similarity": 0.650000},
+        ]
+        selection = {"threshold": 0.654449, "strategy": "best-f1"}
+
+        self.assertEqual(operational_threshold(selection, results), 0.654449)
 
 
 class BenchmarkTests(unittest.TestCase):

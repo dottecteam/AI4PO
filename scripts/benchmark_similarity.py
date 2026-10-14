@@ -15,6 +15,20 @@ from typing import Iterable, Mapping, Sequence
 from urllib.request import Request, urlopen
 
 
+CSV_FIELDNAMES = [
+    "id",
+    "category",
+    "similar",
+    "source_a",
+    "source_b",
+    "similarity",
+    "cosine_distance",
+    "predicted_alert",
+    "a",
+    "b",
+]
+
+
 def cosine_similarity(vector_a: Sequence[float], vector_b: Sequence[float]) -> float:
     """Calcula a similaridade de cosseno entre dois vetores não nulos."""
     if len(vector_a) != len(vector_b):
@@ -116,10 +130,24 @@ def operational_threshold(
     """Converte o corte medido em um valor estável para configuração."""
     raw_threshold = float(selection["threshold"])
     if selection["strategy"] != "perfect-separation-midpoint":
-        # Duas casas evitam transformar o melhor score de um dataset pequeno
-        # em uma constante excessivamente específica. Arredondar para cima é
-        # conservador: reduz falsos positivos, o principal risco para alertas.
-        return math.ceil((raw_threshold - 1e-12) * 100) / 100
+        # Prefere duas casas sem alterar a classificação que selecionou o
+        # melhor F1. Entre opções equivalentes, o maior corte é conservador;
+        # se nenhuma preserva a matriz de confusão, mantém o valor medido.
+        raw_metrics = evaluate_threshold(results, raw_threshold)
+        rounded_candidates = {
+            math.floor((raw_threshold + 1e-12) * 100) / 100,
+            math.ceil((raw_threshold - 1e-12) * 100) / 100,
+        }
+        confusion_keys = ("tp", "fp", "tn", "fn")
+        preserving_candidates = [
+            candidate
+            for candidate in rounded_candidates
+            if all(
+                evaluate_threshold(results, candidate)[key] == raw_metrics[key]
+                for key in confusion_keys
+            )
+        ]
+        return max(preserving_candidates, default=raw_threshold)
 
     minimum_positive = min(
         float(result["similarity"])
@@ -189,6 +217,17 @@ def benchmark_pairs(
     return results
 
 
+def write_results_csv(
+    results: Sequence[Mapping[str, object]], output_path: Path
+) -> None:
+    """Grava os resultados e preserva a origem dos requisitos comparados."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8-sig", newline="") as output_file:
+        writer = csv.DictWriter(output_file, fieldnames=CSV_FIELDNAMES)
+        writer.writeheader()
+        writer.writerows(results)
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
@@ -210,7 +249,15 @@ def main() -> int:
     args = parser.parse_args()
 
     pairs = json.loads(args.dataset.read_text(encoding="utf-8"))
-    required_fields = {"id", "category", "similar", "a", "b"}
+    required_fields = {
+        "id",
+        "category",
+        "similar",
+        "source_a",
+        "source_b",
+        "a",
+        "b",
+    }
     if not isinstance(pairs, list) or not pairs:
         raise ValueError("dataset must be a non-empty JSON list")
     for pair in pairs:
@@ -232,21 +279,7 @@ def main() -> int:
     for result in results:
         result["predicted_alert"] = float(result["similarity"]) >= threshold
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = [
-        "id",
-        "category",
-        "similar",
-        "similarity",
-        "cosine_distance",
-        "predicted_alert",
-        "a",
-        "b",
-    ]
-    with args.output.open("w", encoding="utf-8-sig", newline="") as output_file:
-        writer = csv.DictWriter(output_file, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(results)
+    write_results_csv(results, args.output)
 
     print(f"Modelo: {args.model}")
     print(f"Pares: {len(results)} | textos únicos: {len(texts)}")
