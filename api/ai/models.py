@@ -15,6 +15,8 @@ class ChunkDoc(models.Model):
     # de embedding configurado em OLLAMA_EMBEDDING_MODEL (nomic-embed-text gera 768);
     # se divergir, o Postgres rejeita a gravação com "expected N dimensions".
     embedding = VectorField(dimensions=768)
+    # GraphRAG: chunk já processado pela ingestão do grafo (indexação incremental).
+    grafo_processado = models.BooleanField(default=False)
 
     class Meta:
         indexes = [
