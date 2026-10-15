@@ -1,5 +1,6 @@
 import json
 import logging
+import threading
 from datetime import datetime
 
 import requests
@@ -16,6 +17,7 @@ from users.authentication import CookieJWTAuthentication
 
 from .history import carregar_historico
 from .models import Conversa, MensagemChat
+from .summary import atualizar_resumo
 
 logger = logging.getLogger(__name__)
 
@@ -183,14 +185,18 @@ class ChatView(APIView):
 
             # Injeção de Contexto Dinâmico
             data_hora_formatada = datetime.now().strftime("%A, %d/%m/%Y às %H:%M")
-            system_msg = {
-                "role": "system",
-                "content": (
-                    f"Contexto do sistema: A data e hora exata agora é {data_hora_formatada}. "
-                    "Local: São José dos Campos, SP. "
-                    "LEMBRETE CRÍTICO: Responda SEMPRE em texto humano puro. NUNCA imprima JSONs."
-                ),
-            }
+            conteudo_system = (
+                f"Contexto do sistema: A data e hora exata agora é {data_hora_formatada}. "
+                "Local: São José dos Campos, SP. "
+                "LEMBRETE CRÍTICO: Responda SEMPRE em texto humano puro. NUNCA imprima JSONs."
+            )
+            # Memória de longo prazo: o que já saiu da janela de mensagens vive no resumo
+            if conversa and conversa.resumo:
+                conteudo_system += (
+                    "\n\nResumo da conversa até aqui (mensagens mais antigas, já fora do histórico): "
+                    f"{conversa.resumo}"
+                )
+            system_msg = {"role": "system", "content": conteudo_system}
 
             conteudo_usuario = message
             if documento_texto:
@@ -282,6 +288,12 @@ class ChatView(APIView):
                     ])
                     # auto_now só atualiza se o campo estiver em update_fields
                     conversa.save(update_fields=["atualizado_em"])
+                    # Resumo em segundo plano, só depois do commit: não atrasa a resposta
+                    transaction.on_commit(
+                        lambda cid=conversa.id: threading.Thread(
+                            target=atualizar_resumo, args=(cid,), daemon=True
+                        ).start()
+                    )
 
             return JsonResponse({
                 "message": resposta_final,

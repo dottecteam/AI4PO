@@ -1,12 +1,19 @@
 def carregar_historico(conversa, max_msgs=8, max_chars=6000):
     """
-    Janela deslizante: as N mensagens mais recentes da conversa, limitadas
+    Janela deslizante: as N mensagens mais recentes AINDA NÃO resumidas, limitadas
     também por tamanho total (o tamanho do prompt é o que pesa no Ollama).
+    O que veio antes de `conversa.resumido_ate_id` está em `conversa.resumo`,
+    que a view injeta no prompt de sistema.
     Deve ser chamada ANTES de salvar a mensagem atual, que é anexada à parte.
     """
     historico = []
     total = 0
-    for m in conversa.mensagens.order_by("-id")[:max_msgs]:
+    recentes = (
+        conversa.mensagens
+        .filter(id__gt=conversa.resumido_ate_id)
+        .order_by("-id")[:max_msgs]
+    )
+    for m in recentes:
         conteudo = m.conteudo
         if m.anexo_nome:
             # o texto do anexo não é persistido; deixa ao menos o rastro dele
