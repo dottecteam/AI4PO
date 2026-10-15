@@ -5,7 +5,7 @@ Pipeline de ingestão (task #13-1):
   2. deduplicar por chave canônica dentro do projeto;
   3. gravar arestas tipadas com confiança e evidências (chunks de origem).
 
-Detecção de comunidades e retrieval chegam nas tasks #13-2/#13-3.
+Detecção de comunidades na task #13-2; retrieval chega na #13-3.
 """
 
 import json
@@ -18,12 +18,14 @@ from decouple import config
 from django.db import transaction
 from django.db.models.functions import Length
 
-from ai.models import ChunkDoc, Entidade, Relacao
+from ai.models import ChunkDoc, Entidade, Comunidade, Relacao
 
 OLLAMA_URL = config("OLLAMA_URL", default="http://localhost:11434")
 # Para extração usamos o modelo base (sem persona), que segue JSON melhor.
 MODELO_GRAFO = config("GRAPH_MODEL", default="llama3.2:3b")
 KEEP_ALIVE = config("OLLAMA_KEEP_ALIVE", default="30m")
+# Arestas com confiança abaixo disto não colam comunidades nem entram no desenho.
+CONF_MINIMA = float(config("GRAPH_CONF_MIN", default="0.5"))
 
 
 class ErroDeGrafo(Exception):
@@ -76,6 +78,8 @@ Regras rigidas:
 - Somente relacoes explicitas no texto. Nao invente. Os nomes das relacoes devem bater com as entidades listadas.
 - 'confianca' e um numero de 0 a 1 indicando quao clara e a relacao no texto.
 - Max 8 entidades, 10 relacoes.
+- Nunca crie entidade para caminho de arquivo ou pasta (ex.: docs/, docs/scrum/) nem arquivo de configuracao (ex.: docker-compose.yml).
+- Nao crie relacoes cuja origem ou destino seja o nome do produto ou do projeto; eles sao contexto, nao no do grafo.
 """
 
 # Taxonomia fechada: tipo fora da lista vira 'conceito' (evita entidades verbo).
@@ -85,8 +89,10 @@ _RX_LIXO = re.compile(r"\.(md|pdf|txt|json|py|ts|tsx)$|^realit\s*#|\bsem_dado\b"
 _RX_DATA = re.compile(r"^\d{1,2}[/\-.]\d{1,2}([/\-.]\d{2,4})?$")
 # Verbos conjugados que o modelo às vezes devolve como 'entidade' (heurística pt).
 _RX_VERBO = re.compile(r"(ou|iu|aram|iam|ava|ando|endo|ido)$", re.IGNORECASE)
+# Caminhos/breadcrumbs ("docs/scrum/") e arquivos de config ("docker-compose.yml").
+_RX_CAMINHO = re.compile(r"^[\w.\-]+(/[\w.\-]*)+/?$|^[\w\-]+\.(ya?ml|toml|env|sql|csv|xlsx?)$", re.IGNORECASE)
 # Palavras demasiado genericas para virar no.
-_NOMES_GENERICOS = {"sistema", "dados", "projeto", "coisa", "item", "parte", "time", "equipe", "empresa", "produto", "documento", "texto", "informacao", "analise", "processo", "api", "node", "endpoint", "indicador", "modulo", "componente", "requisito"}
+_NOMES_GENERICOS = {"sistema", "dados", "projeto", "coisa", "item", "parte", "time", "equipe", "empresa", "produto", "documento", "texto", "informacao", "analise", "processo", "api", "node", "endpoint", "indicador", "modulo", "componente", "requisito","ata", "tela", "log", "interface", "escopo", "plataforma", "cronometro", "base", "atuacao", "tooltip"}
 # Infinitivos comuns que o modelo devolve como "entidade" — lista explicita para
 # nao rejeitar termos validos em ingles que so terminam em -er/-ar (server, parser).
 _VERBOS_BLOQUEADOS = {"gerar", "validar", "indexar", "criar", "definir", "usar", "fazer", "tratar", "extrair", "gerenciar", "configurar", "implementar", "registrar", "armazenar", "processar", "retornar", "exibir", "adicionar", "remover", "atualizar", "buscar", "salvar", "enviar", "receber", "executar", "realizar", "analisar", "verificar", "documentar", "notificar"}
@@ -115,6 +121,8 @@ def _eh_lixo(nome):
     """
     n = (nome or "").strip()
     if len(n) < 3 or _RX_LIXO.search(n) or _RX_DATA.match(n):
+        return True
+    if _RX_CAMINHO.match(n):
         return True
     if " " not in n and _RX_VERBO.search(n):
         return True
@@ -197,7 +205,7 @@ def _obter_ou_criar_entidade(nome, tipo, descricao, projeto):
     )
 
 
-def ingestir(limite=None, projeto_id=None, lote=1, documento_id=None):
+def ingestir(limite=None, projeto_id=None, lote=1, documento_id=None, reprocessar=False):
     """Extrai entidades/relações de chunks em lotes (batching). Retorna métricas + tempo.
 
     Latência: o lote agrupa N chunks por chamada ao LLM (menos idas à GPU);
@@ -206,6 +214,8 @@ def ingestir(limite=None, projeto_id=None, lote=1, documento_id=None):
     já indexado pela pipeline de RAG (chunking + embeddings).
     Idempotência: deduplicação por chave canônica + get_or_create na tripla
     (origem, destino, tipo) — reingestir o mesmo doc não duplica arestas.
+    Incremental: por padrão só processa chunks ainda não marcados; `reprocessar=True`
+    força todos (usar após mudanças no filtro/prompt).
     """
     queryset = (
         ChunkDoc.objects
@@ -218,6 +228,9 @@ def ingestir(limite=None, projeto_id=None, lote=1, documento_id=None):
         queryset = queryset.filter(projeto_id=projeto_id)
     if documento_id:
         queryset = queryset.filter(documento_id=documento_id)
+    if not reprocessar:
+        # Indexação incremental: só chunks ainda não processados pelo grafo.
+        queryset = queryset.filter(grafo_processado=False)
     chunks = list(queryset[:limite] if limite else queryset)
 
     # Agrupar em lotes de `lote` chunks para reduzir chamadas ao LLM
@@ -283,5 +296,119 @@ def ingestir(limite=None, projeto_id=None, lote=1, documento_id=None):
                 )
                 if criado:
                     n_rel += 1
+            # Marca o lote como processado: próxima rodada pula estes chunks.
+            ChunkDoc.objects.filter(id__in=[c.id for c in grupo]).update(grafo_processado=True)
     dur = round(time.perf_counter() - t0, 1)
     return {"chunks_processados": len(chunks), "lotes": len(lotes), "entidades": n_ent, "relacoes": n_rel, "segundos": dur}
+
+
+_SEM_FILTRO = object()  # sentinel: distingue "todos os projetos" de "sem projeto"
+
+
+def _montar_networkx(projeto_id=_SEM_FILTRO, conf_minima=CONF_MINIMA):
+    """Grafo não-direcionado de Entidade/Relacao para detecção de comunidades.
+
+    Só entram arestas com confiança mínima (senão chute fraco cola temas
+    distintos). projeto_id=None agrupa especificamente as entidades sem projeto.
+    """
+    import networkx as nx
+
+    G = nx.Graph()
+    ents = Entidade.objects.all()
+    if projeto_id is not _SEM_FILTRO:
+        ents = ents.filter(projeto_id=projeto_id)
+    ids = set(ents.values_list("id", flat=True))
+    for ent in ents:
+        G.add_node(ent.id, nome=ent.nome, tipo=ent.tipo)
+    for rel in Relacao.objects.filter(confianca__gte=conf_minima):
+        if rel.origem_id in ids and rel.destino_id in ids:
+            G.add_edge(rel.origem_id, rel.destino_id, tipo=rel.tipo, confianca=rel.confianca)
+    return G
+
+
+def _detectar_uma(G, min_tamanho=4, resolucao=1.0):
+    """Louvain com confiança como peso, sem hubs nem isolados; pequenos reagrupados.
+
+    Hubs (grau >= 2x a média — ex.: nome do produto colado em tudo) ficam fora da
+    detecção: eles conectam temas distintos e fariam o Louvain fundir comunidades.
+    Grupos abaixo de min_tamanho são reencaixados na comunidade vizinha mais
+    próxima, em vez de virar micro-comunidade sem sentido.
+    """
+    from networkx.algorithms.community import louvain_communities
+
+    graus = dict(G.degree())
+    if not graus:
+        return []
+    medio = sum(graus.values()) / len(graus)
+    hubs = {n for n, g in graus.items() if g >= max(2 * medio, 10)}
+    H = G.subgraph([n for n in G.nodes() if n not in hubs and graus[n] > 0]).copy()
+    try:
+        coms = [set(c) for c in louvain_communities(H, weight="confianca", resolution=resolucao, seed=42)]
+    except Exception:
+        coms = [set(H.nodes())]
+    grandes = [c for c in coms if len(c) >= min_tamanho]
+    for c in [c for c in coms if len(c) < min_tamanho]:
+        if not grandes:
+            break
+        votos = {i: sum(1 for n in c for v in H.neighbors(n) if v in g) for i, g in enumerate(grandes)}
+        if votos and max(votos.values()) > 0:
+            grandes[max(votos, key=votos.get)] |= c
+    return grandes
+
+
+def _resumo_comunidade(ents, rels_internas):
+    """LLM gera título e resumo com contexto real: descrições E relações, não só nomes."""
+    nomes = "\n".join(f"- {e.nome} ({e.tipo}): {e.descricao}" for e in ents)
+    arestas = "\n".join(f"- {r.origem.nome} --{r.tipo}--> {r.destino.nome}" for r in rels_internas[:20])
+    prompt = (
+        "Estas entidades formam um tema do conhecimento de um produto de Product Ownership.\n\n"
+        f"ENTIDADES:\n{nomes}\n\nRELAÇÕES:\n{arestas}\n\n"
+        'Responda APENAS JSON no formato {"titulo": "", "resumo": ""}.\n'
+        "titulo: no maximo 8 palavras, especifico do tema (nunca generico como 'RealIT').\n"
+        "resumo: 3 a 5 frases sobre o que o grupo define e como se liga ao resto do produto.\n"
+        "Nao comece com 'Este grupo'. Nao invente nada que nao esteja nos dados."
+    )
+    bruto = _chat(prompt=prompt, num_predict=350, temperature=0.2, formato="json")
+    dados = _extrair_json(bruto)
+    if not isinstance(dados, dict):
+        return "", ""
+    return (dados.get("titulo", "") or "")[:255], (dados.get("resumo", "") or "")
+
+
+def detectar_comunidades(min_tamanho=4, pular_resumo=False, projeto_id=None):
+    """Agrupa entidades por modularidade (Louvain, confiança como peso) POR PROJETO.
+
+    Regenera do zero (apaga as comunidades do projeto antes): rodar duas vezes
+    não acumula. Título/resumo via LLM; se o Ollama cair, a partição vale e o
+    resumo fica vazio para preencher numa segunda rodada.
+    """
+    t0 = time.perf_counter()
+    n = 0
+    projeto_ids = list(Entidade.objects.values_list("projeto_id", flat=True).distinct())
+    if projeto_id is not None:
+        projeto_ids = [p for p in projeto_ids if p == projeto_id]
+    for proj_id in projeto_ids:
+        G = _montar_networkx(projeto_id=proj_id)
+        if G.number_of_nodes() == 0:
+            continue
+        Comunidade.objects.filter(projeto_id=proj_id).delete()
+        for grupo in _detectar_uma(G, min_tamanho=min_tamanho):
+            ents = list(Entidade.objects.filter(id__in=list(grupo)))
+            ids = {e.id for e in ents}
+            rels = list(Relacao.objects.filter(
+                confianca__gte=CONF_MINIMA, origem_id__in=ids, destino_id__in=ids
+            ).select_related("origem", "destino"))
+            titulo = resumo = ""
+            if not pular_resumo:
+                try:
+                    titulo, resumo = _resumo_comunidade(ents, rels)
+                except ErroDeGrafo:
+                    pass  # partição continua válida; resumo vazio
+            if not titulo:
+                graus = dict(G.subgraph(grupo).degree())
+                titulo = max(ents, key=lambda e: graus.get(e.id, 0)).nome[:255]
+            com = Comunidade.objects.create(titulo=titulo, resumo=resumo, tamanho=len(ents), projeto_id=proj_id)
+            com.membros.set(ents)
+            n += 1
+    dur = round(time.perf_counter() - t0, 1)
+    return {"comunidades": n, "segundos": dur}
