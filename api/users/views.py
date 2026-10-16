@@ -7,6 +7,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework.throttling import AnonRateThrottle
 from django.conf import settings
 from .permissions import IsAdmin
+from django.contrib.auth import get_user_model
 
 from django.middleware.csrf import get_token
 
@@ -20,7 +21,17 @@ def serialize_user(user):
     # dados públicos do usuário — nunca inclua password/hash aqui
     return {"id": user.id_po, "nome": user.nome, "email": user.email}
 
-
+def serialize_user_admin(user):
+    # Serialização específica para rotas administrativas de gestão.
+    # Expõe dados cadastrais e o estado da conta (is_active / is_admin)
+    # para consulta e moderação, sem expor campos sensíveis (como hashes de senha).
+    return {
+        "id": user.id_po,
+        "nome": user.nome,
+        "email": user.email,
+        "is_active": user.is_active,  # <--- o campo da task
+        "is_admin": getattr(user, "is_admin", False),
+    }
 # Limita requisições anônimas a 5 tentativas por minuto por IP
 class LoginThrottle(AnonRateThrottle):
     rate = '5/min'
@@ -75,3 +86,24 @@ class AdminOnlyView(APIView):
 
     def get(self, request):
         return Response({"mensagem": "Bem-vindo, chefe! Você é um administrador."}) # Teste
+
+
+
+User = get_user_model()
+
+class AdminUserListView(APIView):
+    permission_classes = [IsAdmin]  # só o admin acessa
+
+    def get(self, request):
+        queryset = User.objects.all().order_by("nome")
+
+        # Permite filtrar por ?is_active=true ou ?is_active=false
+        is_active_param = request.query_params.get("is_active")
+        if is_active_param is not None:
+            if is_active_param.lower() in ["true", "1"]:
+                queryset = queryset.filter(is_active=True)
+            elif is_active_param.lower() in ["false", "0"]:
+                queryset = queryset.filter(is_active=False)
+
+        dados = [serialize_user_admin(u) for u in queryset]
+        return Response(dados, status=200)
