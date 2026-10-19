@@ -534,3 +534,131 @@ def detectar_comunidades(min_tamanho=4, pular_resumo=False, projeto_id=None):
             n += 1
     dur = round(time.perf_counter() - t0, 1)
     return {"comunidades": n, "segundos": dur}
+
+
+# ---------------------------------------------------------------------------
+# Retrieval no grafo (task #13-3): transforma o grafo em contexto para o chat.
+# ---------------------------------------------------------------------------
+
+# Termos com menos letras que isto não discriminam nada: casariam com tudo
+# (o 'acao' dentro de 'autenticacao', por exemplo). O piso vem daí.
+_TAMANHO_MINIMO_TERMO = 4
+
+
+def _termos_da_pergunta(pergunta):
+    """Termos de busca da pergunta, na mesma forma canônica usada nos nós.
+
+    Zero LLM de propósito: o retrieval está no caminho da resposta ao usuário,
+    então cada chamada ao modelo custaria segundos. A normalização compartilhada
+    com a ingestão é o que faz 'autenticações' achar o nó 'autenticação'.
+    """
+    termos = []
+    for termo in _chave_canonica(pergunta or "").split():
+        if len(termo) >= _TAMANHO_MINIMO_TERMO and termo not in termos:
+            termos.append(termo)
+    return termos
+
+
+def _buscar_sementes(termos, entidades, grau):
+    """Nós semente por termos inteiros: nome vale mais que descrição.
+
+    Compara por conjunto de tokens (e não por substring) para que 'acao' não
+    pesque o nó 'autenticacao'. Empate de pontuação resolve por grau, assim a
+    pergunta 'frontend' cai no componente central e não num sinônimo esquecido.
+    """
+    marcados = []
+    for ent in entidades:
+        tokens_nome = set(_chave_canonica(ent.nome).split())
+        tokens_descricao = set(_chave_canonica(ent.descricao).split())
+        pontos = sum(2 for t in termos if t in tokens_nome) + sum(1 for t in termos if t in tokens_descricao)
+        if pontos:
+            marcados.append((pontos, grau[ent.id], ent.id))
+    marcados.sort(reverse=True)
+    return [ent_id for _, _, ent_id in marcados]
+
+
+def buscar_no_grafo(pergunta, projeto_id, max_entidades=5, max_saltos=1):
+    """Monta o contexto do grafo (caminhos + comunidades + fontes) para o chat.
+
+    Escopo obrigatório por projeto: sem ele a resposta de um cliente poderia
+    citar o grafo de outro. A expansão respeita CONF_MINIMA — a mesma régua do
+    desenho e das comunidades — para chute fraco não colar temas distintos.
+    Retorna texto puro porque quem consome isto é o agente do Ollama.
+    """
+    if not projeto_id:
+        return ("Nenhuma pergunta ao grafo foi feita sem projeto selecionado: "
+                "o conhecimento é organizado por projeto.")
+    termos = _termos_da_pergunta(pergunta)
+    if not termos:
+        return "A pergunta não trouxe termos suficientes para consultar o grafo."
+
+    entidades = list(Entidade.objects.filter(projeto_id=projeto_id))
+    if not entidades:
+        return "Este projeto ainda não tem grafo de conhecimento: envie e indexe documentos primeiro."
+    por_id = {ent.id: ent for ent in entidades}
+
+    arestas = list(Relacao.objects.filter(projeto_id=projeto_id, confianca__gte=CONF_MINIMA)
+                   .select_related("origem", "destino")
+                   .prefetch_related("evidencias__documento"))
+    grau = defaultdict(int)
+    vizinhanca = defaultdict(list)
+    for aresta in arestas:
+        grau[aresta.origem_id] += 1
+        grau[aresta.destino_id] += 1
+        vizinhanca[aresta.origem_id].append(aresta)
+        vizinhanca[aresta.destino_id].append(aresta)
+
+    sementes = _buscar_sementes(termos, entidades, grau)[:max_entidades]
+    if not sementes:
+        return ("Nenhuma entidade do grafo deste projeto corresponde à pergunta. "
+                "Tente outro termo ou consulte os documentos indexados.")
+
+    # BFS de até `max_saltos` a partir das sementes: é o que responde pergunta
+    # multi-salto ('quem fez o frontend?' liga pessoa -> frontend -> projeto).
+    selecionados = set(sementes)
+    bordas = {}
+    fronteira = list(sementes)
+    for _ in range(max(0, max_saltos)):
+        proxima = []
+        for ent_id in fronteira:
+            for aresta in vizinhanca[ent_id]:
+                bordas[aresta.id] = aresta
+                outro = aresta.destino_id if aresta.origem_id == ent_id else aresta.origem_id
+                if outro not in selecionados:
+                    selecionados.add(outro)
+                    proxima.append(outro)
+        fronteira = proxima
+
+    caminhos = [
+        f"- {a.origem.nome} --{a.tipo}--> {a.destino.nome} (confiança {a.confianca:.1f})"
+        for a in sorted(bordas.values(), key=lambda a: (-a.confianca, a.id))
+    ]
+    nos = [
+        f"- {por_id[ent_id].nome} ({por_id[ent_id].tipo}): {por_id[ent_id].descricao}"
+        for ent_id in sorted(selecionados, key=lambda i: por_id[i].nome.lower())
+        if por_id[ent_id].descricao
+    ]
+
+    comunidades = (Comunidade.objects.filter(projeto_id=projeto_id, membros__id__in=selecionados)
+                   .exclude(resumo="").distinct())
+    temas = [f"- {c.titulo}: {c.resumo}" for c in comunidades]
+
+    # Fontes: documentos dos chunks que sustentam as arestas exibidas. Sem isto,
+    # a citação de fontes da #13 oficial não tem de onde sair.
+    documentos = sorted({
+        chunk.documento.nome
+        for aresta in bordas.values()
+        for chunk in aresta.evidencias.select_related("documento").all()
+    })
+
+    partes = ["CONHECIMENTO RELACIONADO (grafo do projeto)"]
+    if caminhos:
+        partes.append("Relações:\n" + "\n".join(caminhos))
+    if nos:
+        partes.append("Entidades:\n" + "\n".join(nos))
+    if temas:
+        partes.append("Temas do grafo:\n" + "\n".join(temas))
+    if documentos:
+        partes.append("Fontes: " + ", ".join(documentos))
+    partes.append("Use apenas o acima; se não cobrir a pergunta, diga que não sabe.")
+    return "\n\n".join(partes)
