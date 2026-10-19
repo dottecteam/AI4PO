@@ -150,6 +150,29 @@ similares = (
 )
 ```
 
+### Contrato implementado na task #7-2
+
+O módulo [`api/ai/similarity.py`](../../api/ai/similarity.py) expõe:
+
+```python
+verificar_similaridade(texto: object) -> list[ResultadoSimilaridade]
+```
+
+Cada `ResultadoSimilaridade` contém:
+
+- `chunk_id` e `conteudo` do trecho possivelmente semelhante;
+- `similaridade`, calculada como `1 - distance`;
+- `projeto_id` e `projeto_titulo`;
+- `documento_id` e `documento_nome`.
+
+O retorno é ordenado da maior para a menor similaridade e limitado aos cinco
+melhores candidatos. Texto vazio devolve uma lista vazia. Falhas do serviço de
+embeddings continuam sendo representadas por `FalhaDeEmbeddingError`, para que
+a futura rota possa distingui-las da ausência legítima de correspondências.
+
+A task #7-2 entrega somente o módulo backend. A rota consumida durante a
+digitação e a exibição do alerta pertencem à task #7-3.
+
 Na resposta da API, a similaridade pode ser calculada assim:
 
 ```python
