@@ -6,6 +6,7 @@ from decouple import config
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from ai.retrieval import responder_com_base_vetorial, responder_com_documento
+from ai.graphrag import buscar_no_grafo
 from ai.indexing import FalhaDeEmbeddingError
 
 OLLAMA_URL = config("OLLAMA_URL", default="http://host.docker.internal:11434")
@@ -26,6 +27,27 @@ TOOLS = [
                     "termo_pesquisa": {"type": "string", "description": "Palavra-chave curta para a busca."}
                 },
                 "required": ["termo_pesquisa"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            # Task #13-3: o grafo responde o que a busca vetorial não alcança —
+            # relacionamento entre pessoas, requisitos e decisões.
+            "name": "consultar_grafo_conhecimento",
+            "description": (
+                "Consulta o GRAFO de conhecimento do projeto: quem fez ou é dono de quê, o que "
+                "depende de quê, o que foi decidido e em qual sprint, e como os temas se agrupam. "
+                "Acione para perguntas de RELACIONAMENTO (pessoa -> entrega, requisito -> decisão). "
+                "Para conteúdo literal de um documento, prefira buscar_contexto_projetos."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pergunta": {"type": "string", "description": "A pergunta do usuário, integral."}
+                },
+                "required": ["pergunta"]
             }
         }
     },
@@ -55,6 +77,12 @@ def executar_ferramenta(nome_ferramenta, args, message, projeto_id, documento_te
             projeto_id=projeto_id
         )
         
+    elif nome_ferramenta == "consultar_grafo_conhecimento":
+        return buscar_no_grafo(
+            pergunta=args.get("pergunta", message),
+            projeto_id=projeto_id
+        )
+
     elif nome_ferramenta == "analisar_documento_anexado":
         if documento_texto:
             return responder_com_documento(texto_doc=documento_texto, pergunta=args.get("pergunta", message))

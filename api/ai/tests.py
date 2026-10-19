@@ -2,6 +2,7 @@ from django.test import TestCase
 
 # Create your tests here.
 
+import json
 import tempfile
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
@@ -25,6 +26,16 @@ from ai.extraction import (
     FormatoNaoSuportadoError,
     extrair_texto,
 )
+
+from ai.graphrag import (
+    _chave_identidade,
+    _nome_melhor,
+    _termos_da_pergunta,
+    buscar_no_grafo,
+)
+from ai.models import ChunkDoc, Comunidade, Entidade, Relacao
+from projects.models import Documento, Projeto
+from users.models import UsuarioPO
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class ExtracaoDeTextoTests(TestCase):
@@ -217,3 +228,175 @@ class IndexacaoDeDocumentoTests(TestCase):
              patch('ai.indexing.gerar_embeddings', return_value=[[0.1] * 768]):
             with self.assertRaises(FalhaDeEmbeddingError):
                 indexar_documento(documento)
+
+
+# ---------------------------------------------------------------------------
+# GraphRAG (tasks #13-1 a #13-3): identidade de nós e retrieval no grafo.
+# ---------------------------------------------------------------------------
+
+class IdentidadeDeNoTests(TestCase):
+    """Canonização sem dicionário de apelidos: handle e nome real são o mesmo nó."""
+
+    def test_handle_e_nome_real_colapsam_na_mesma_chave(self):
+        self.assertEqual(_chave_identidade('kayanmatta'), _chave_identidade('Kayan da Matta'))
+        self.assertEqual(_chave_identidade('KauanDomingues'), _chave_identidade('Kauan Domingues'))
+
+    def test_pessoas_diferentes_nao_colapsam(self):
+        self.assertNotEqual(_chave_identidade('João Paulo'), _chave_identidade('Paulo João'))
+        self.assertNotEqual(_chave_identidade('frontend do AI4PO'), _chave_identidade('frontend'))
+
+    def test_rotulo_legivel_vence_o_handle(self):
+        self.assertTrue(_nome_melhor('Kayan da Matta', 'kayanmatta'))
+        self.assertFalse(_nome_melhor('kayanmatta', 'Kayan da Matta'))
+
+    def test_termos_miudos_foram_descartados_da_busca(self):
+        # A pergunta passa pela MESMA normalização dos nós: 'embeddings' vira
+        # 'embedding' aqui e no nome do nó, e é isso que faz os dois se acharem.
+        termos = _termos_da_pergunta('Quem é o dono da pipeline de embeddings?')
+        self.assertIn('pipeline', termos)
+        self.assertIn('embedding', termos)
+        for miuda in ('o', 'da', 'de', 'e'):
+            self.assertNotIn(miuda, termos)
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class RetrievalNoGrafoTests(TestCase):
+    """O grafo responde pergunta de relacionamento, dentro de um único projeto."""
+
+    def setUp(self):
+        po = UsuarioPO.objects.create_user(email='po@pro4tech.com', nome='PO', password='x')
+        self.projeto = Projeto.objects.create(usuario_po=po, titulo='PayCore', descricao='pagamentos')
+        outro = UsuarioPO.objects.create_user(email='outro@pro4tech.com', nome='Outro', password='x')
+        self.projeto_alheio = Projeto.objects.create(usuario_po=outro, titulo='RealIT', descricao='credito')
+
+        documento = Documento.objects.create(projeto=self.projeto, nome='atas.md', tipo='md')
+        self.chunk = ChunkDoc.objects.create(
+            documento=documento, projeto=self.projeto,
+            conteudo='Marya entregou o frontend do chatbot.', embedding=[0.0] * 768,
+        )
+
+        marya = self._no('Marya Vitória', 'pessoa', self.projeto, 'Desenvolvedora do time')
+        frontend = self._no('frontend do chatbot', 'artefato', self.projeto, 'Interface do chatbot')
+        decisao = self._no('Decisão de layout', 'decisao', self.projeto, 'Definida na sprint 2')
+        self._aresta(marya, frontend, 'implementa', 0.9)
+        self._aresta(frontend, decisao, 'deriva_de', 0.7)
+
+        comunidade = Comunidade.objects.create(
+            projeto=self.projeto, titulo='Entregas de interface',
+            resumo='Agrupa o frontend e quem o construiu.', tamanho=2,
+        )
+        comunidade.membros.set([marya, frontend])
+
+        analista = self._no('Renata Prado', 'pessoa', self.projeto_alheio, 'Analista de crédito')
+        self._aresta(analista, self._no('Cooperativa Vale Norte', 'sistema', self.projeto_alheio), 'pertence_a', 0.8)
+
+    def _no(self, nome, tipo, projeto, descricao=''):
+        return Entidade.objects.create(
+            nome=nome, chave=_chave_identidade(nome), tipo=tipo, descricao=descricao, projeto=projeto,
+        )
+
+    def _aresta(self, origem, destino, tipo, confianca):
+        aresta = Relacao.objects.create(
+            origem=origem, destino=destino, tipo=tipo, confianca=confianca, projeto=self.projeto,
+        )
+        aresta.evidencias.add(self.chunk)
+        return aresta
+
+    def test_pergunta_de_relacionamento_traz_pessoa_e_artefato(self):
+        resposta = buscar_no_grafo('quem implementou o frontend do chatbot?', self.projeto.id)
+        self.assertIn('Marya Vitória', resposta)
+        self.assertIn('frontend do chatbot', resposta)
+        self.assertIn('implementa', resposta)
+
+    def test_um_salto_alcancia_a_decisao_por_tras_do_artefato(self):
+        resposta = buscar_no_grafo('frontend do chatbot', self.projeto.id, max_saltos=1)
+        self.assertIn('Decisão de layout', resposta)
+
+    def test_salto_zero_mostra_so_a_vizinhanca_imediata(self):
+        resposta = buscar_no_grafo('frontend do chatbot', self.projeto.id, max_saltos=0)
+        self.assertNotIn('Decisão de layout', resposta)
+
+    def test_comunidade_e_fonte_aparecem_no_contexto(self):
+        resposta = buscar_no_grafo('frontend do chatbot', self.projeto.id)
+        self.assertIn('Entregas de interface', resposta)
+        self.assertIn('atas.md', resposta)
+
+    def test_nao_vaza_para_o_grafo_de_outro_projeto(self):
+        resposta = buscar_no_grafo('Renata Prado', self.projeto.id)
+        self.assertNotIn('Renata Prado', resposta)
+        self.assertIn('Nenhuma entidade', resposta)
+        self.assertIn('Renata Prado', buscar_no_grafo('Renata Prado', self.projeto_alheio.id))
+
+    def test_sem_projeto_nao_consulta_nada(self):
+        self.assertTrue(buscar_no_grafo('frontend do chatbot', None).startswith('Nenhuma pergunta'))
+
+    def test_aresta_de_confianca_baixa_nao_colapara_temas(self):
+        # CONF_MINIMA é a mesma régua do desenho e das comunidades.
+        Relacao.objects.filter(projeto_id=self.projeto.id).update(confianca=0.1)
+        resposta = buscar_no_grafo('frontend do chatbot', self.projeto.id)
+        self.assertNotIn('Marya Vitória', resposta)
+
+
+class FerramentaDoGrafoNaViewTests(TestCase):
+    """Prova a ligação view → grafo: sem isto a #13-3 é só uma função órfã."""
+
+    def setUp(self):
+        po = UsuarioPO.objects.create_user(email='view@pro4tech.com', nome='PO View', password='x')
+        self.projeto = Projeto.objects.create(usuario_po=po, titulo='PayCore', descricao='pagamentos')
+        marya = Entidade.objects.create(nome='Marya Vitória', chave='maryavitoria', tipo='pessoa',
+                                        descricao='Desenvolvedora', projeto=self.projeto)
+        frontend = Entidade.objects.create(nome='frontend do chatbot', chave='frontendchatbot',
+                                           tipo='artefato', descricao='Interface', projeto=self.projeto)
+        Relacao.objects.create(origem=marya, destino=frontend, tipo='implementa',
+                               confianca=0.9, projeto=self.projeto)
+
+    def _resposta(self, conteudo):
+        mock = MagicMock()
+        mock.raise_for_status.return_value = None
+        mock.json.return_value = {"message": conteudo}
+        return mock
+
+    def test_agente_aciona_ferramenta_e_recebe_contexto_do_grafo(self):
+        depois_de_ferramenta = self._resposta({"content": "Foi a Marya Vitória."})
+        with patch('ai.views.requests.post', side_effect=[
+            self._resposta({"tool_calls": [{"function": {
+                "name": "consultar_grafo_conhecimento",
+                "arguments": {"pergunta": "quem fez o frontend do chatbot?"},
+            }}]}),
+            depois_de_ferramenta,
+        ]) as post:
+            resposta = self.client.post(
+                '/api/chat/',
+                json.dumps({'message': 'quem fez o frontend do chatbot?', 'projeto_id': self.projeto.id}),
+                content_type='application/json',
+            )
+
+        self.assertEqual(resposta.status_code, 200)
+        mensagens = post.call_args_list[1].kwargs["json"]["messages"]
+        conteudo_da_ferramenta = [m for m in mensagens if m.get("role") == "tool"]
+        self.assertEqual(len(conteudo_da_ferramenta), 1)
+        self.assertIn('Marya Vitória', conteudo_da_ferramenta[0]["content"])
+        self.assertIn('implementa', conteudo_da_ferramenta[0]["content"])
+
+    def test_ferramenta_nao_le_grafo_de_outro_projeto(self):
+        outro_po = UsuarioPO.objects.create_user(email='outro@pro4tech.com', nome='Outro PO', password='x')
+        outro = Projeto.objects.create(usuario_po=outro_po, titulo='RealIT', descricao='crédito')
+        Entidade.objects.create(nome='Renata Prado', chave='renataprado', tipo='pessoa',
+                                descricao='Analista de crédito', projeto=outro)
+
+        with patch('ai.views.requests.post', side_effect=[
+            self._resposta({"tool_calls": [{"function": {
+                "name": "consultar_grafo_conhecimento",
+                "arguments": {"pergunta": "quem é Renata Prado?"},
+            }}]}),
+            self._resposta({"content": "Não consta no projeto."}),
+        ]) as post:
+            self.client.post(
+                '/api/chat/',
+                json.dumps({'message': 'quem é Renata Prado?', 'projeto_id': self.projeto.id}),
+                content_type='application/json',
+            )
+
+        mensagens = post.call_args_list[1].kwargs["json"]["messages"]
+        conteudo = [m for m in mensagens if m.get("role") == "tool"][0]["content"]
+        self.assertNotIn('Renata Prado', conteudo)
