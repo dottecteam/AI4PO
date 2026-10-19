@@ -5,11 +5,57 @@ from datetime import datetime
 from decouple import config
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from ai import similarity
 from ai.retrieval import responder_com_base_vetorial, responder_com_documento
 from ai.indexing import FalhaDeEmbeddingError
 
 OLLAMA_URL = config("OLLAMA_URL", default="http://host.docker.internal:11434")
 MODEL = config("OLLAMA_MODEL", default="llama3.2:3b")
+
+
+class SimilarityCheckView(APIView):
+    def post(self, request):
+        texto = request.data.get("texto") if isinstance(request.data, dict) else None
+        if not isinstance(texto, str):
+            return Response(
+                {"detail": "O campo texto deve ser uma string."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not texto.strip():
+            return Response({"resultados": []})
+
+        try:
+            resultados = similarity.verificar_similaridade(texto)
+        except FalhaDeEmbeddingError:
+            return Response(
+                {"detail": "Verificação de similaridade indisponível."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response(
+            {
+                "resultados": [
+                    {
+                        "chunkId": resultado.chunk_id,
+                        "conteudo": resultado.conteudo,
+                        "similaridade": resultado.similaridade,
+                        "projeto": {
+                            "id": resultado.projeto_id,
+                            "titulo": resultado.projeto_titulo,
+                        },
+                        "documento": {
+                            "id": resultado.documento_id,
+                            "nome": resultado.documento_nome,
+                        },
+                    }
+                    for resultado in resultados
+                ]
+            }
+        )
+
 
 # ==========================================
 # DEFINIÇÃO DAS FERRAMENTAS (SKILLS)
