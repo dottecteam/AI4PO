@@ -86,7 +86,7 @@ Regras rigidas:
 - Nao crie entidade para palavra generica isolada (ex.: 'sistema', 'dados', 'projeto', 'time').
 - Somente relacoes explicitas no texto. Nao invente. Os nomes das relacoes devem bater com as entidades listadas.
 - 'confianca' e um numero de 0 a 1 indicando quao clara e a relacao no texto.
-- Max 8 entidades, 10 relacoes.
+- Max 12 entidades, 15 relacoes.
 - Nunca crie entidade para caminho de arquivo ou pasta (ex.: docs/, docs/scrum/) nem arquivo de configuracao (ex.: docker-compose.yml).
 - Nao crie relacoes cuja origem ou destino seja o nome do produto ou do projeto; eles sao contexto, nao no do grafo.
 - Resolva identidades: quando o texto der o usuario/handle e o nome real da mesma entidade (ex.: '@jkatayama' e 'Jessica Katayama'), cite APENAS o nome real, no singular, uma unica vez.

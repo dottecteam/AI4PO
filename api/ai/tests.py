@@ -29,9 +29,12 @@ from ai.extraction import (
 
 from ai.graphrag import (
     _chave_identidade,
+    _extrair_json,
     _nome_melhor,
     _termos_da_pergunta,
     buscar_no_grafo,
+    detectar_comunidades,
+    ingestir,
 )
 from ai.models import ChunkDoc, Comunidade, Entidade, Relacao
 from projects.models import Documento, Projeto
@@ -400,3 +403,175 @@ class FerramentaDoGrafoNaViewTests(TestCase):
         mensagens = post.call_args_list[1].kwargs["json"]["messages"]
         conteudo = [m for m in mensagens if m.get("role") == "tool"][0]["content"]
         self.assertNotIn('Renata Prado', conteudo)
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class IngestaoDoGrafoTests(TestCase):
+    """Pipeline de ingestão com o LLM encenado: nenhum destes testes depende de GPU."""
+
+    DUPLA = [
+        {'nome': 'Marya Vitória', 'tipo': 'pessoa', 'descricao': 'Desenvolvedora'},
+        {'nome': 'frontend do chatbot', 'tipo': 'artefato', 'descricao': 'Interface do chatbot'},
+    ]
+
+    def setUp(self):
+        po = UsuarioPO.objects.create_user(email='ingest@pro4tech.com', nome='PO Ingest', password='x')
+        self.projeto = Projeto.objects.create(usuario_po=po, titulo='PayCore', descricao='pagamentos')
+        self.documento = Documento.objects.create(projeto=self.projeto, nome='atas.md', tipo='md')
+
+    def _chunk(self, conteudo=None):
+        texto = conteudo or (
+            'A reuniao de hoje registrou que Marya Vitoria implementou o frontend do chatbot '
+            'e que a decisao foi tomada na sprint 3 por todo o time presente na sala.'
+        )
+        return ChunkDoc.objects.create(
+            documento=self.documento, projeto=self.projeto, conteudo=texto, embedding=[0.0] * 768,
+        )
+
+    @staticmethod
+    def _saida(entidades, relacoes):
+        return json.dumps({'entidades': entidades, 'relacoes': relacoes}, ensure_ascii=False)
+
+    def _aresta_simples(self, tipo='implementa', confianca=0.9, descricao='implementou o componente'):
+        return [{'origem': 'Marya Vitória', 'destino': 'frontend do chatbot', 'tipo': tipo,
+                 'confianca': confianca, 'descricao': descricao}]
+
+    # --- caminho feliz -------------------------------------------------------
+
+    def test_ingestao_grava_no_aresta_evidencia_e_marca_o_chunk(self):
+        chunk = self._chunk()
+        with patch('ai.graphrag._chat', return_value=self._saida(self.DUPLA, self._aresta_simples())):
+            metrica = ingestir(projeto_id=self.projeto.id, documento_id=self.documento.id, lote=1)
+
+        self.assertEqual(metrica['entidades'], 2)
+        self.assertEqual(metrica['relacoes'], 1)
+        self.assertEqual(Entidade.objects.filter(projeto=self.projeto).count(), 2)
+        aresta = Relacao.objects.get(projeto=self.projeto)
+        self.assertEqual([c.id for c in aresta.evidencias.all()], [chunk.id])
+        chunk.refresh_from_db()
+        self.assertTrue(chunk.grafo_processado)
+
+    def test_detectar_comunidades_regenera_sem_acumular(self):
+        nos = [Entidade.objects.create(nome=f'Componente {i}', chave=f'componente{i}', tipo='sistema',
+                                        projeto=self.projeto) for i in range(4)]
+        # K4: agrupamento denso o bastante para o Louvain fechar uma única comunidade.
+        for i, origem in enumerate(nos):
+            for destino in nos[i + 1:]:
+                Relacao.objects.create(origem=origem, destino=destino, tipo='depende_de',
+                                       confianca=0.9, projeto=self.projeto)
+        with patch('ai.graphrag._chat', return_value=self._saida([], [])):
+            primeira = detectar_comunidades(projeto_id=self.projeto.id)
+            segunda = detectar_comunidades(projeto_id=self.projeto.id)
+
+        self.assertEqual(primeira['comunidades'], 1)
+        self.assertEqual(segunda['comunidades'], 1)
+        self.assertEqual(Comunidade.objects.filter(projeto=self.projeto).count(), 1)
+
+    # --- idempotência e incremental -----------------------------------------
+
+    def test_reprocessar_o_mesmo_chunk_nao_duplica_no_nem_aresta(self):
+        self._chunk()
+        with patch('ai.graphrag._chat', return_value=self._saida(self.DUPLA, self._aresta_simples())):
+            ingestir(projeto_id=self.projeto.id, lote=1, reprocessar=True)
+            ingestir(projeto_id=self.projeto.id, lote=1, reprocessar=True)
+
+        self.assertEqual(Entidade.objects.filter(projeto=self.projeto).count(), 2)
+        self.assertEqual(Relacao.objects.filter(projeto=self.projeto).count(), 1)
+
+    def test_rounda_incremental_nao_rechama_o_modelo_para_chunk_ja_lido(self):
+        self._chunk()
+        with patch('ai.graphrag._chat', return_value=self._saida(self.DUPLA, self._aresta_simples())) as chat:
+            primeiro = ingestir(projeto_id=self.projeto.id, lote=1)
+            segundo = ingestir(projeto_id=self.projeto.id, lote=1)
+
+        self.assertEqual(primeiro['chunks_processados'], 1)
+        self.assertEqual(segundo['chunks_processados'], 0)
+        self.assertEqual(chat.call_count, 1)
+
+    def test_chunk_curto_demais_nem_chega_ao_modelo(self):
+        self._chunk(conteudo='curto demais')
+        with patch('ai.graphrag._chat') as chat:
+            metrica = ingestir(projeto_id=self.projeto.id, lote=1)
+
+        self.assertEqual(metrica['chunks_processados'], 0)
+        chat.assert_not_called()
+
+    # --- taxonomia e confiança ----------------------------------------------
+
+    def test_tipo_de_aresta_inventado_degrada_para_menciona(self):
+        self._chunk()
+        with patch('ai.graphrag._chat', return_value=self._saida(self.DUPLA, self._aresta_simples(tipo='coleta'))):
+            ingestir(projeto_id=self.projeto.id, lote=1)
+
+        self.assertEqual(Relacao.objects.get(projeto=self.projeto).tipo, 'menciona')
+
+    def test_confianca_fora_da_faixa_nao_quebra_a_ingestao(self):
+        self._chunk()
+        for bruto, esperado in (('2.5', 1.0), ('abc', 0.7)):
+            Relacao.objects.all().delete()
+            Entidade.objects.all().delete()
+            saida = self._saida(self.DUPLA, self._aresta_simples(confianca=bruto))
+            with patch('ai.graphrag._chat', return_value=saida):
+                ingestir(projeto_id=self.projeto.id, lote=1, reprocessar=True)
+            self.assertAlmostEqual(Relacao.objects.get(projeto=self.projeto).confianca, esperado)
+
+    # --- filtros de qualidade de dados ---------------------------------------
+
+    def test_data_caminho_papel_verbo_e_frase_nao_viram_no(self):
+        self._chunk()
+        lixo = ['docs/scrum/', '03/10/2026', 'aprovou', 'Scrum Master', 'sistema',
+                'a autenticação só na sprint 3 e com jwt valido agora']
+        saida = self._saida([{'nome': n, 'tipo': 'conceito', 'descricao': ''} for n in lixo], [])
+        with patch('ai.graphrag._chat', return_value=saida):
+            ingestir(projeto_id=self.projeto.id, lote=1)
+
+        self.assertEqual(Entidade.objects.filter(projeto=self.projeto).count(), 0)
+
+    def test_resposta_fora_do_formato_nao_inventa_grafo(self):
+        chunk = self._chunk()
+        with patch('ai.graphrag._chat', return_value='Desculpe, não consegui estruturar isso em JSON.'):
+            metrica = ingestir(projeto_id=self.projeto.id, lote=1)
+
+        self.assertEqual(Entidade.objects.filter(projeto=self.projeto).count(), 0)
+        self.assertEqual(metrica['relacoes'], 0)
+        chunk.refresh_from_db()
+        self.assertTrue(chunk.grafo_processado)  # a rodada foi paga: não re-processa o mesmo lixo
+
+    # --- identidade e enriquecimento monotônico ------------------------------
+
+    def test_handle_e_nome_real_sao_um_no_so_e_o_rotulo_legivel_vence(self):
+        self._chunk()
+        with patch('ai.graphrag._chat', return_value=self._saida(
+                [{'nome': 'kayanmatta', 'tipo': 'pessoa', 'descricao': 'Orquestrou a indexação'}], [])):
+            ingestir(projeto_id=self.projeto.id, lote=1)
+        with patch('ai.graphrag._chat', return_value=self._saida(
+                [{'nome': 'Kayan da Matta', 'tipo': 'pessoa', 'descricao': 'PO do produto'}], [])):
+            ingestir(projeto_id=self.projeto.id, lote=1, reprocessar=True)
+
+        no = Entidade.objects.get(projeto=self.projeto)
+        self.assertEqual(no.nome, 'Kayan da Matta')
+        # monotônico: a primeira descrição fundamentada não é sobrescrita
+        self.assertEqual(no.descricao, 'Orquestrou a indexação')
+
+    def test_ponta_de_relacao_nasce_conceito_e_sobe_para_o_tipo_declarado(self):
+        self._chunk()
+        with patch('ai.graphrag._chat', return_value=self._saida([], self._aresta_simples())):
+            ingestir(projeto_id=self.projeto.id, lote=1)
+            marya = Entidade.objects.get(nome='Marya Vitória')
+            self.assertEqual(marya.tipo, 'conceito')
+            self.assertEqual(marya.descricao, 'implementou o componente')
+
+            saida = self._saida([{'nome': 'Marya Vitória', 'tipo': 'pessoa', 'descricao': ''}], [])
+            with patch('ai.graphrag._chat', return_value=saida):
+                ingestir(projeto_id=self.projeto.id, lote=1, reprocessar=True)
+
+        self.assertEqual(Entidade.objects.get(nome='Marya Vitória').tipo, 'pessoa')
+
+    # --- leitura da resposta do modelo ----------------------------------------
+
+    def test_extrair_json_tolera_cerca_markdown_e_texto_ao_redor(self):
+        alvo = self._saida([{'nome': 'Frontend', 'tipo': 'sistema', 'descricao': ''}], [])
+        self.assertEqual(_extrair_json('Claro!\n```json\n' + alvo + '\n```\n'), json.loads(alvo))
+
+    def test_extrair_json_recusa_objeto_truncado(self):
+        self.assertIsNone(_extrair_json('{"entidades": [{"nome": "sem fim"'))
