@@ -124,11 +124,14 @@ def _ler_anexo(arquivo):
 # ==========================================
 # DISPATCHER (MAPEAMENTO DE FUNÇÕES)
 # ==========================================
-def executar_ferramenta(nome_ferramenta, args, message, projeto_id, documento_texto):
+def executar_ferramenta(nome_ferramenta, args, message, projeto_id, documento_texto, usuario, fontes):
     if nome_ferramenta == "buscar_contexto_projetos":
+        # a busca é restrita aos projetos do usuário; `fontes` recebe a origem dos trechos
         return responder_com_base_vetorial(
             pergunta=args.get("termo_pesquisa", message),
+            usuario=usuario,
             projeto_id=projeto_id,
+            fontes=fontes,
         )
 
     if nome_ferramenta == "analisar_documento_anexado":
@@ -213,6 +216,7 @@ class ChatView(APIView):
             # Chamada inicial: o agente decide se usa ferramentas
             response_message = _chamar_ollama(messages, com_tools=True)
 
+            fontes = []  # origem (projeto/documento) dos trechos que a busca trouxe
             tool_calls = response_message.get("tool_calls")
             if tool_calls:
                 messages.append(response_message)
@@ -229,6 +233,8 @@ class ChatView(APIView):
                         message=message,
                         projeto_id=projeto_id,
                         documento_texto=documento_texto,
+                        usuario=request.user,
+                        fontes=fontes,
                     )
                     # "tool_name" é o campo atual da API do Ollama; "name" fica por compatibilidade
                     messages.append({
@@ -298,6 +304,7 @@ class ChatView(APIView):
             return JsonResponse({
                 "message": resposta_final,
                 "conversa_id": conversa.id if conversa else None,
+                "fontes": fontes,
             })
 
         except Http404:
