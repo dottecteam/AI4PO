@@ -97,6 +97,28 @@ body {
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { scrollbar-width: none; }
 
+/* Scrollbar do campo de texto do chat.
+   O fundo do campo é --surface-elevated, a mesma cor da barra global, que por isso sumia.
+   A trilha é transparente: só a barra aparece, sem faixa de fundo.
+   Para trocar as cores, mude só as duas variáveis abaixo. */
+.scrollbar-input {
+  --scroll-track: transparent;             /* fundo da trilha (sem fundo) */
+  --scroll-thumb: var(--secondary-muted);  /* barra */
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track); /* Firefox e Chrome 121+ */
+}
+/* Chrome/Edge/Safari antigos (o Chrome novo usa a propriedade acima e ignora estes) */
+.scrollbar-input::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+  margin: 6px 0; /* não encosta nos cantos arredondados */
+}
+.scrollbar-input::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 10px;
+}
+.scrollbar-input::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
 .range-thumb {
   -webkit-appearance: none;
   appearance: none;
