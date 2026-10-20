@@ -4,7 +4,8 @@ import { usePathname } from "next/navigation"
 import { PanelLeftClose, PanelLeftOpen, Menu, MessageSquare } from "lucide-react"
 import Link from "next/link"
 import Logo from "./Logo"
-import { PAGINAS_PRINCIPAIS, PAGINAS_CONFIG } from "@/app/constants/navigation"
+import { PAGINAS_PRINCIPAIS, PAGINAS_ADMIN, PAGINAS_CONFIG } from "@/app/constants/navigation"
+import { useAuth } from "@/app/contexts/AuthContext"
 import { SidebarItem } from "./app/SidebarItem"
 
 type ConversaResumo = {
@@ -31,6 +32,11 @@ export default function Sidebar() {
   const [expandido, setExpandido] = useState(false)
   const [conversas, setConversas] = useState<ConversaResumo[]>([])
   const pathname = usePathname()
+  const { usuario } = useAuth()
+
+  const paginasPrincipais = usuario?.is_admin
+    ? [...PAGINAS_PRINCIPAIS, ...PAGINAS_ADMIN]
+    : PAGINAS_PRINCIPAIS
 
   useEffect(() => {
     if (window.innerWidth < 768) {
@@ -67,7 +73,7 @@ export default function Sidebar() {
 
       <aside
         className={`
-          fixed md:relative top-0 left-0 z-50 h-full bg-background border-r border-gray-800/50 
+          fixed md:relative top-0 left-0 z-50 h-full bg-background border-r border-gray-800/50
           flex flex-col py-4 transition-all duration-300 ease-in-out
           ${expandido
             ? "translate-x-0 w-65 px-3 shadow-2xl md:shadow-none"
@@ -94,7 +100,7 @@ export default function Sidebar() {
         </div>
 
         <nav className="w-full flex flex-col gap-1">
-          {PAGINAS_PRINCIPAIS.map((pagina) => (
+          {paginasPrincipais.map((pagina) => (
             <SidebarItem key={pagina.rota} {...pagina} expandido={expandido} />
           ))}
         </nav>

@@ -1,4 +1,4 @@
-import { Home, MessagesSquare, FolderOpen, Loader, Settings, CircleUserRound } from "lucide-react"
+import { Home, MessagesSquare, FolderOpen, Loader, Settings, CircleUserRound, ShieldCheck } from "lucide-react"
 
 export const PAGINAS_PRINCIPAIS = [
     { icone: Home, label: "Página Inicial", rota: "/dashboard" },
@@ -10,4 +10,8 @@ export const PAGINAS_PRINCIPAIS = [
 export const PAGINAS_CONFIG = [
     { icone: Settings, label: "Configurações", rota: "/configuracoes" },
     { icone: CircleUserRound, label: "Meu Perfil", rota: "/perfil" },
+]
+
+export const PAGINAS_ADMIN = [
+    { icone: ShieldCheck, label: "Administração", rota: "/admin/usuarios" },
 ]

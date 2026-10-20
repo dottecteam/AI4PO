@@ -136,7 +136,28 @@ class GestaoLoginTests(TestCase):
     def test_id_inexistente_404(self):
         self.assertEqual(self.ca.delete(BASE + "admin/users/9999/", **csrf(self.ca)).status_code, 404)
 
+    def test_logout_limpa_cookies_mesmo_com_login_revogado(self):
+        cpo, _ = logar("po@x.com")
+        self.ca.patch(self.url, {"is_active": False}, format="json", **csrf(self.ca))
+        self.assertEqual(cpo.get(BASE + "me/").status_code, 401)
+        r = cpo.post(BASE + "logout/", format="json")
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(r.cookies["access_token"].value, "")
+        self.assertEqual(r.cookies["refresh_token"].value, "")
+
     def test_filtro_is_active_da_10_1_continua(self):
         self.ca.patch(self.url, {"is_active": False}, format="json", **csrf(self.ca))
         emails = [u["email"] for u in self.ca.get(BASE + "admin/users/?is_active=false").json()]
         self.assertEqual(emails, ["po@x.com"])
+
+    # ---- navegador: login revogado precisa conseguir limpar os cookies ----
+    def test_logout_limpa_cookies_mesmo_com_login_revogado(self):
+        cpo, _ = logar("po@x.com")
+        self.ca.patch(self.url, {"is_active": False}, format="json", **csrf(self.ca))
+        # o cookie velho dá 401 em qualquer rota autenticada...
+        self.assertEqual(cpo.get(BASE + "me/").status_code, 401)
+        # ...mas o logout tem que funcionar e mandar apagar os cookies
+        r = cpo.post(BASE + "logout/")
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(r.cookies["access_token"]["max-age"], 0)
+        self.assertEqual(r.cookies["refresh_token"]["max-age"], 0)

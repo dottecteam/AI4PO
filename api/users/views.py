@@ -23,26 +23,22 @@ COOKIE_KWARGS = dict(httponly=True, secure=not settings.DEBUG, samesite="Lax") #
 
 
 def serialize_user(user):
-    # dados públicos do usuário, nunca inclua password/hash aqui
-    # is_admin: o front usa para mostrar/esconder a área administrativa
     return {"id": user.id_po, "nome": user.nome, "email": user.email, "is_admin": user.is_staff}
 
 def serialize_user_admin(user):
-    # Serialização específica para rotas administrativas de gestão.
-    # Expõe dados cadastrais e o estado da conta (is_active / is_admin)
-    # para consulta e moderação, sem expor campos sensíveis (como hashes de senha).
     return {
         "id": user.id_po,
         "nome": user.nome,
         "email": user.email,
         "is_active": user.is_active,
-        "is_admin": user.is_staff,  # o model não tem is_admin; o perfil admin é is_staff (ver IsAdmin)
+        "is_admin": user.is_staff,
         "excluido_em": user.excluido_em,
     }
 
 
 def revogar_sessoes(user):
-    # Invalida no servidor todos os refresh tokens já emitidos para o usuário
+    # Invalida no servidor todos os refresh tokens já emitidos para o usuário,
+    # para que nenhuma sessão antiga consiga renovar o acesso.
     for token in OutstandingToken.objects.filter(user=user):
         BlacklistedToken.objects.get_or_create(token=token)
 
@@ -75,6 +71,10 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
+
+    authentication_classes = []
+    permission_classes = []
+
     def post(self, request):
         refresh_token = request.COOKIES.get("refresh_token")
         if refresh_token:
