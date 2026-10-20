@@ -3,6 +3,9 @@
 Módulo: `api/ai/graphrag.py` (app `ai`). Feature #13, equipe DotTec.
 Data de referência: 20/10/2026.
 
+Este arquivo descreve **como** o módulo funciona por dentro. Para uma visão curta —
+por que escolhemos GraphRAG, como rodar e quanto tempo custa — veja `GraphRAG.md`.
+
 ## O que é e por que existe
 
 O RAG vetorial clássico responde "o que está escrito nos documentos". Ele não
