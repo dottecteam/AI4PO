@@ -40,9 +40,10 @@ class Conversa(models.Model):
         Projeto, null=True, blank=True, on_delete=models.SET_NULL, related_name="conversas"
     )
     titulo = models.CharField(max_length=120, blank=True)
+    resumo = models.TextField(blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)  # toca sozinho a cada .save()
-
+    resumido_ate_id = models.PositiveBigIntegerField(default=0)
     class Meta:
         ordering = ["-atualizado_em"]  # mais recente primeiro, pra sidebar
 
