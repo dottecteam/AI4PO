@@ -32,7 +32,7 @@ type Fonte = {
 }
 
 type Mensagem = {
-  tipo: "usuario" | "agente" | "anexo"
+  tipo: "usuario" | "agente"
   texto: string
   anexo?: string
   validacao?: Validacao
@@ -213,10 +213,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       }
 
       setConversaId(data.conversa_id)
-      setMensagens((prev) => [
-        ...prev,
-        { tipo: "agente", texto: data.message, fontes: data.fontes ?? [] },
-      ])
+      setMensagens((prev) => [...prev, { tipo: "agente", texto: data.message }])
     } catch (error) {
       console.error("Erro:", error)
       setMensagens((prev) => [
@@ -294,11 +291,10 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           </span>
         </div>
 
-        {/* Botão de Filtro */}
-        <div className="w-auto h-10 bg-[var(--surface-elevated)] rounded-lg flex justify-center items-center px-3 shrink-0 cursor-pointer hover:bg-[var(--surface-base)] transition-colors border border-gray-800/50">
+        <div className="w-auto h-10 bg-(--surface-elevated) rounded-lg flex justify-center items-center px-3 shrink-0 cursor-pointer hover:bg-(--surface-base) transition-colors border border-gray-800/50">
           <button
             type="button"
-            className="flex items-center justify-center p-1 pr-2 border-r border-gray-700 cursor-pointer"
+            className="flex items-center justify-center p-1 pr-2 border-r border-gray-700"
           >
             <ChevronDown size={20} className="text-white" />
           </button>

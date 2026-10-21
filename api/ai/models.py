@@ -59,6 +59,7 @@ class MensagemChat(models.Model):
     conteudo = models.TextField()
     anexo_nome = models.CharField(max_length=255, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
+    metadata = models.JSONField(null=True, blank=True)
 
     class Meta:
         ordering = ["id"]  # ordem cronológica dentro da conversa

@@ -22,6 +22,13 @@ from .validacao_chat import MENSAGEM_SEM_MODELO, detectar_especificacao, montar_
 from .summary import atualizar_resumo
 
 logger = logging.getLogger(__name__)
+from .reformatar import (
+    ReformatacaoError,
+    classificar_intencao,
+    gerar_reformatacao,
+    reformatacao_pendente,
+    salvar_reformatacao,
+)
 
 OLLAMA_URL = config("OLLAMA_URL", default="http://host.docker.internal:11434")
 MODEL = config("OLLAMA_MODEL", default="llama3.2:3b")
@@ -189,6 +196,38 @@ class ChatView(APIView):
                 # nos turnos seguintes o front pode não reenviar o projeto
                 projeto_id = projeto_id or conversa.projeto_id
 
+            # ==========================================
+            # ROTEAMENTO: reformatar / ajustar / conversar
+            # ==========================================
+            if message.strip() and not documento_texto:
+                anterior = reformatacao_pendente(conversa)
+                intencao, tipo = classificar_intencao(
+                    message, ultima_foi_reformatacao=anterior is not None
+                )
+                # "ajustar" só faz sentido logo depois de uma reformatação
+                if intencao == "ajustar" and anterior is None:
+                    intencao = "conversar"
+
+                print(f" [ROTEADOR]: intenção='{intencao}', tipo='{tipo}'")
+
+                if intencao in ("reformatar", "ajustar"):
+                    resultado = gerar_reformatacao(
+                        message, tipo, anterior if intencao == "ajustar" else None
+                    )
+                    salvar_reformatacao(conversa, message, resultado)
+
+                    print(f"\n [AIPO REFORMATAÇÃO ({resultado['tipo']})]:\n{resultado['reformatado']}")
+                    print(f"{'='*60}\n")
+
+                    return JsonResponse({
+                        "message": resultado["reformatado"],
+                        "conversa_id": conversa.id,
+                        "reformatacao": {
+                            "original": resultado["original"],
+                            "tipo": resultado["tipo"],
+                        },
+                    })
+
             # Injeção de Contexto Dinâmico
             data_hora_formatada = datetime.now().strftime("%A, %d/%m/%Y às %H:%M")
             conteudo_system = (
@@ -285,7 +324,7 @@ class ChatView(APIView):
                     })
                     resposta_final = _chamar_ollama(messages).get("content") or ""
             else:
-                resposta_final = response_message.get("content") or  ""
+                resposta_final = response_message.get("content") or   ""
 
             # Filtro de segurança (vale para os dois caminhos) + resposta vazia.
             # O fallback é devolvido ao usuário, mas não vai pro histórico.
@@ -344,6 +383,8 @@ class ChatView(APIView):
 
         except Http404:
             raise
+        except ReformatacaoError as erro:
+            return JsonResponse({"error": erro.mensagem}, status=erro.status)
         except requests.Timeout:
             logger.error("Timeout ao chamar o Ollama")
             return JsonResponse({"error": "O modelo demorou demais para responder. Tente novamente."}, status=504)
