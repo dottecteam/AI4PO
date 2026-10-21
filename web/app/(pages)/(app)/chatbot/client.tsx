@@ -32,7 +32,7 @@ type Fonte = {
 }
 
 type Mensagem = {
-  tipo: "usuario" | "agente"
+  tipo: "usuario" | "agente" | "anexo"
   texto: string
   anexo?: string
   validacao?: Validacao
@@ -205,7 +205,15 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       }
 
       setConversaId(data.conversa_id)
-      setMensagens((prev) => [...prev, { tipo: "agente", texto: data.message }])
+      setMensagens((prev) => [
+        ...prev,
+        {
+          tipo: "agente",
+          texto: data.message,
+          fontes: data.fontes ?? [], // origem dos trechos usados na resposta
+          validacao: data.validacao ?? undefined, // cartão da validação
+        },
+      ])
     } catch (error) {
       console.error("Erro:", error)
       setMensagens((prev) => [
@@ -321,6 +329,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
                   </span>
                 </div>
               )}
+              {msg.validacao && <CartaoValidacao validacao={msg.validacao} />}
               {msg.texto &&
                 (msg.tipo === "agente" ? (
                   <div className="markdown-mensagem prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-pre:bg-(--surface-base) prose-code:text-primary-light">

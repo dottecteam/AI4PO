@@ -21,8 +21,6 @@ from .models import Conversa, MensagemChat
 from .titulo import gerar_titulo
 from .validacao_chat import MENSAGEM_SEM_MODELO, detectar_especificacao, montar_validacao, para_markdown, resumo_curto
 from .summary import atualizar_resumo
-
-logger = logging.getLogger(__name__)
 from .reformatar import (
     ReformatacaoError,
     classificar_intencao,
@@ -30,6 +28,8 @@ from .reformatar import (
     reformatacao_pendente,
     salvar_reformatacao,
 )
+
+logger = logging.getLogger(__name__)
 
 OLLAMA_URL = config("OLLAMA_URL", default="http://host.docker.internal:11434")
 MODEL = config("OLLAMA_MODEL", default="llama3.2:3b")
@@ -79,30 +79,9 @@ TOOLS = [
                 "properties": {
                     "pergunta": {"type": "string", "description": "A pergunta do usuário, integral."}
                 },
-                "required": ["pergunta"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            # Task #13-3: o grafo responde o que a busca vetorial não alcança —
-            # relacionamento entre pessoas, requisitos e decisões.
-            "name": "consultar_grafo_conhecimento",
-            "description": (
-                "Consulta o GRAFO de conhecimento do projeto: quem fez ou é dono de quê, o que "
-                "depende de quê, o que foi decidido e em qual sprint, e como os temas se agrupam. "
-                "Acione para perguntas de RELACIONAMENTO (pessoa -> entrega, requisito -> decisão). "
-                "Para conteúdo literal de um documento, prefira buscar_contexto_projetos."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "pergunta": {"type": "string", "description": "A pergunta do usuário, integral."}
-                },
-                "required": ["pergunta"]
-            }
-        }
+                "required": ["pergunta"],
+            },
+        },
     },
     {
         "type": "function",
@@ -185,12 +164,26 @@ def executar_ferramenta(nome_ferramenta, args, message, projeto_id, documento_te
             projeto_id=projeto_id,
             fontes=fontes,
         )
-        
+
     elif nome_ferramenta == "consultar_grafo_conhecimento":
-        return buscar_no_grafo(
-            pergunta=args.get("pergunta", message),
-            projeto_id=projeto_id
+        pergunta = args.get("pergunta", message)
+
+        # Consulta o grafo para recuperar relações entre pessoas, requisitos e decisões.
+        resposta_grafo = buscar_no_grafo(
+            pergunta=pergunta,
+            projeto_id=projeto_id,
         )
+
+        # Complementa o grafo com trechos literais dos documentos.
+        # A busca vetorial também preenche a lista `fontes` retornada ao frontend.
+        resposta_docs = responder_com_base_vetorial(
+            pergunta=pergunta,
+            usuario=usuario,
+            projeto_id=projeto_id,
+            fontes=fontes,
+        )
+
+        return f"{resposta_grafo}\\n\\n{resposta_docs}"
 
     elif nome_ferramenta == "analisar_documento_anexado":
         if documento_texto:
@@ -239,6 +232,7 @@ class ChatView(APIView):
 
             # Conversa existente é carregada agora; a nova só é criada ao persistir,
             # assim uma falha do Ollama não deixa conversa vazia na sidebar.
+            # ATENÇÃO: em conversa nova, `conversa` continua None até a persistência.
             conversa = None
             if conversa_id:
                 conversa = get_object_or_404(Conversa, pk=conversa_id, usuario_po=request.user)
@@ -249,7 +243,7 @@ class ChatView(APIView):
             # ROTEAMENTO: reformatar / ajustar / conversar
             # ==========================================
             if message.strip() and not documento_texto:
-                anterior = reformatacao_pendente(conversa)
+                anterior = reformatacao_pendente(conversa) if conversa else None
                 intencao, tipo = classificar_intencao(
                     message, ultima_foi_reformatacao=anterior is not None
                 )
@@ -263,7 +257,16 @@ class ChatView(APIView):
                     resultado = gerar_reformatacao(
                         message, tipo, anterior if intencao == "ajustar" else None
                     )
-                    salvar_reformatacao(conversa, message, resultado)
+
+                    # A conversa nova só é criada depois que o Ollama respondeu
+                    with transaction.atomic():
+                        if conversa is None:
+                            conversa = Conversa.objects.create(
+                                usuario_po=request.user,
+                                projeto_id=projeto_id,
+                                titulo=(message[:60] or "Nova conversa"),
+                            )
+                        salvar_reformatacao(conversa, message, resultado)
 
                     print(f"\n [AIPO REFORMATAÇÃO ({resultado['tipo']})]:\n{resultado['reformatado']}")
                     print(f"{'='*60}\n")
@@ -300,7 +303,7 @@ class ChatView(APIView):
                     "antes de responder.]"
                 )
 
-             # Validação de especificação (task #8-3): determinística, não passa pelo Ollama.
+            # Validação de especificação (task #8-3): determinística, não passa pelo Ollama.
             texto_spec = detectar_especificacao(message, documento_texto)
             if texto_spec is not None:
                 validacao = montar_validacao(texto_spec)
@@ -310,14 +313,28 @@ class ChatView(APIView):
                     resposta_md = para_markdown(validacao)
                     resposta_curta = resumo_curto(validacao)
 
-                if not conversa.mensagens.exists():  # conversa nova
-                    conversa.titulo = "Validação de especificação"
+                with transaction.atomic():
+                    if conversa is None:
+                        # conversa nova: criada já com o título da validação
+                        conversa = Conversa.objects.create(
+                            usuario_po=request.user,
+                            projeto_id=projeto_id,
+                            titulo="Validação de especificação",
+                        )
+                    elif not conversa.mensagens.exists():
+                        conversa.titulo = "Validação de especificação"
 
-                MensagemChat.objects.bulk_create([
-                    MensagemChat(conversa=conversa, papel="user", conteudo=message, anexo_nome=anexo_nome),
-                    MensagemChat(conversa=conversa, papel="assistant", conteudo=resposta_md),
-                ])
-                conversa.save()
+                    MensagemChat.objects.bulk_create([
+                        MensagemChat(
+                            conversa=conversa,
+                            papel="user",
+                            conteudo=message or f"[Anexo: {anexo_nome}]",
+                            anexo_nome=anexo_nome,
+                        ),
+                        MensagemChat(conversa=conversa, papel="assistant", conteudo=resposta_md),
+                    ])
+                    conversa.save()
+
                 return JsonResponse({
                     "message": resposta_curta,
                     "conversa_id": conversa.id,
@@ -373,7 +390,7 @@ class ChatView(APIView):
                     })
                     resposta_final = _chamar_ollama(messages).get("content") or ""
             else:
-                resposta_final = response_message.get("content") or   ""
+                resposta_final = response_message.get("content") or ""
 
             # Filtro de segurança (vale para os dois caminhos) + resposta vazia.
             # O fallback é devolvido ao usuário, mas não vai pro histórico.
@@ -410,13 +427,15 @@ class ChatView(APIView):
 
             # na primeira troca, pede ao Ollama um título curto.
             # Se falhar, fica o título provisório (primeiros 60 caracteres da pergunta).
-            if nova_conversa and message:
+            # `conversa` pode ser None se a resposta foi o fallback e nada foi persistido.
+            if nova_conversa and message and conversa:
                 titulo = gerar_titulo(message, resposta_final)
                 if titulo:
-                    conversa.titulo = titulo
+                    conversa.titulo = titulo[:120]  # titulo tem max_length=120
 
-                    # auto_now só atualiza se o campo estiver em update_fields
-                    conversa.save(update_fields=["atualizado_em"])
+                    # "titulo" precisa estar em update_fields; auto_now só atualiza
+                    # "atualizado_em" se o campo também estiver na lista
+                    conversa.save(update_fields=["titulo", "atualizado_em"])
                     # Resumo em segundo plano, só depois do commit: não atrasa a resposta
                     transaction.on_commit(
                         lambda cid=conversa.id: threading.Thread(
