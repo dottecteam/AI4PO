@@ -100,14 +100,6 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     fimMensagensRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [mensagens, carregando])
 
-  // Faz o campo de texto crescer com o conteúdo (até 160px, depois rola)
-  useEffect(() => {
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = "auto"
-    el.style.height = `${Math.min(el.scrollHeight + 2, 160)}px`
-  }, [mensagem])
-
   const abrirSeletorDeArquivo = () => {
     inputArquivoRef.current?.click()
   }
@@ -428,7 +420,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
               onChange={(event) => setMensagem(event.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Pergunte sobre regras, decisões arquiteturais ou use /validar para validar requisitos levantados..."
-              className="block block w-full min-min-h-12 md:min-min-h-14 max-h-40 resize-none overflow-y-auto scrollbar-input max-h-40 resize-none overflow-y-auto bg-(--surface-elevated) outline-none rounded-xl px-4 py-3.5 sm:py-3 md:py-4 py-3 md:py-4 text-sm sm:text-base text-white focus:ring-2 focus:ring-primary border border-gray-700/50 transition duration-200"
+              className="block w-full min-h-12 md:min-h-14 max-h-40 resize-none overflow-y-auto scrollbar-input bg-(--surface-elevated) outline-none rounded-xl px-4 py-3 md:py-4 text-sm sm:text-base text-white focus:ring-2 focus:ring-primary border border-gray-700/50 transition duration-200"
             />
           </div>
           <button

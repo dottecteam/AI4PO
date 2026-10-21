@@ -1,10 +1,35 @@
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL
 
+const METODOS_SEGUROS = ["GET", "HEAD", "OPTIONS"]
+
+function getCookie(name: string) {
+  if (typeof document === "undefined") return undefined
+  return document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(name + "="))
+    ?.split("=")[1]
+}
+
+// O Django só exige CSRF em métodos não seguros (POST, PATCH, PUT, DELETE)
+function getCsrfHeader(metodo?: string): Record<string, string> {
+  const m = (metodo ?? "GET").toUpperCase()
+  if (METODOS_SEGUROS.includes(m)) return {}
+  const token = getCookie("csrftoken")
+  return token ? { "X-CSRFToken": token } : {}
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const isFormData = options?.body instanceof FormData
+
   const response = await fetch(`${BASE_URL}${path}`, {
     ...options,
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...options?.headers },
+    headers: {
+      // Com FormData não definimos Content-Type: o navegador gera o boundary correto
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
+      ...getCsrfHeader(options?.method),
+      ...options?.headers,
+    },
   })
 
   if (!response.ok) {
@@ -28,8 +53,12 @@ async function apiFetchBlob(
   options?: RequestInit,
 ): Promise<Blob> {
   const response = await fetch(`${BASE_URL}${path}`, {
-    credentials: "include", // envia o cookie JWT
     ...options,
+    credentials: "include", // envia o cookie JWT
+    headers: {
+      ...getCsrfHeader(options?.method),
+      ...options?.headers,
+    },
   })
 
   if (!response.ok) {
@@ -40,19 +69,14 @@ async function apiFetchBlob(
 }
 
 export const api = {
-  get: <T>(path: string) =>
-    apiFetch<T>(path, {
-      headers: { "Content-Type": "application/json" },
-    }),
+  get: <T>(path: string) => apiFetch<T>(path),
 
   post: <T>(path: string, body: unknown) =>
     apiFetch<T>(path, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
 
-  // Sem Content-Type manual: o navegador define o boundary certo do multipart sozinho.
   postForm: <T>(path: string, formData: FormData) =>
     apiFetch<T>(path, {
       method: "POST",
@@ -62,7 +86,6 @@ export const api = {
   patch: <T>(path: string, body: unknown) =>
     apiFetch<T>(path, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
 
