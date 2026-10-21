@@ -11,6 +11,13 @@ from ai.retrieval import responder_com_base_vetorial, responder_com_documento
 from ai.indexing import FalhaDeEmbeddingError
 from .history import carregar_historico
 from .models import Conversa, MensagemChat
+from .reformatar import (
+    ReformatacaoError,
+    classificar_intencao,
+    gerar_reformatacao,
+    reformatacao_pendente,
+    salvar_reformatacao,
+)
 
 OLLAMA_URL = config("OLLAMA_URL", default="http://host.docker.internal:11434")
 MODEL = config("OLLAMA_MODEL", default="llama3.2:3b")
@@ -115,6 +122,38 @@ class ChatView(APIView):
                     titulo=(message[:60] if message else "Nova conversa"),
                 )
 
+            # ==========================================
+            # ROTEAMENTO: reformatar / ajustar / conversar
+            # ==========================================
+            if message.strip() and not documento_texto:
+                anterior = reformatacao_pendente(conversa)
+                intencao, tipo = classificar_intencao(
+                    message, ultima_foi_reformatacao=anterior is not None
+                )
+                # "ajustar" só faz sentido logo depois de uma reformatação
+                if intencao == "ajustar" and anterior is None:
+                    intencao = "conversar"
+
+                print(f" [ROTEADOR]: intenção='{intencao}', tipo='{tipo}'")
+
+                if intencao in ("reformatar", "ajustar"):
+                    resultado = gerar_reformatacao(
+                        message, tipo, anterior if intencao == "ajustar" else None
+                    )
+                    salvar_reformatacao(conversa, message, resultado)
+
+                    print(f"\n [AIPO REFORMATAÇÃO ({resultado['tipo']})]:\n{resultado['reformatado']}")
+                    print(f"{'='*60}\n")
+
+                    return JsonResponse({
+                        "message": resultado["reformatado"],
+                        "conversa_id": conversa.id,
+                        "reformatacao": {
+                            "original": resultado["original"],
+                            "tipo": resultado["tipo"],
+                        },
+                    })
+
             # Injeção de Contexto Dinâmico
             agora = datetime.now()
             data_hora_formatada = agora.strftime("%A, %d/%m/%Y às %H:%M")
@@ -177,7 +216,7 @@ class ChatView(APIView):
 
             else:
                 # Caso ele não utilize ferramentas (Bate-papo)
-                resposta_final = response_message.get("content") or""
+                resposta_final = response_message.get("content") or ""
 
                 # Filtro de Segurança
                 if resposta_final.strip().startswith('{"name":') or resposta_final.strip().startswith('{"'):
@@ -199,6 +238,8 @@ class ChatView(APIView):
 
         except Http404:
             raise
+        except ReformatacaoError as erro:
+            return JsonResponse({"error": erro.mensagem}, status=erro.status)
         except Exception as error:
             if isinstance(error, FalhaDeEmbeddingError):
                 print(f"\n[ERRO RAG] Falha ao gerar vetor: {str(error)}")
