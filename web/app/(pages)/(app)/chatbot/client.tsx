@@ -19,12 +19,24 @@ import CartaoValidacao, {
 
 const extensoes = [".txt", ".md"]
 const tamanho_max = 10 * 1024 * 1024
+const altura_max_input = 160 // px (~6 linhas): acima disso o campo passa a rolar
+
+// Origem de um trecho usado na resposta (campo "fontes" do /api/chat/)
+type Fonte = {
+  chunk_id: number
+  projeto: string
+  documento: string
+  secao: string | null
+  trecho: string
+  similaridade: number
+}
 
 type Mensagem = {
   tipo: "usuario" | "agente" | "anexo"
   texto: string
   anexo?: string
   validacao?: Validacao
+  fontes?: Fonte[]
 }
 
 type MensagemApi = {
@@ -51,7 +63,16 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
   const [exportando, setExportando] = useState(false)
   const inputArquivoRef = useRef<HTMLInputElement>(null)
   const fimMensagensRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const campoTextoRef = useRef<HTMLTextAreaElement>(null)
+
+  // Campo de texto que cresce com o conteúdo, até altura_max_input (depois rola).
+  // Roda também quando a mensagem é limpa após o envio, devolvendo o campo ao tamanho de 1 linha.
+  useEffect(() => {
+    const campo = campoTextoRef.current
+    if (!campo) return
+    campo.style.height = "auto"
+    campo.style.height = `${Math.min(campo.scrollHeight, altura_max_input)}px`
+  }, [mensagem])
 
   // Ao abrir uma conversa existente (vinda da sidebar), carrega o histórico salvo
   useEffect(() => {
@@ -194,11 +215,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       setConversaId(data.conversa_id)
       setMensagens((prev) => [
         ...prev,
-        {
-          tipo: "agente",
-          texto: data.message,
-          validacao: data.validacao ?? undefined, // cartão da validação
-        },
+        { tipo: "agente", texto: data.message, fontes: data.fontes ?? [] },
       ])
     } catch (error) {
       console.error("Erro:", error)
@@ -304,7 +321,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
             <div
               className={`relative max-w-[85%] rounded-2xl px-5 py-3 text-sm sm:text-base shadow-sm ${
                 msg.tipo === "usuario"
-                  ? "bg-primary text-white rounded-tr-sm"
+                  ? "bg-primary text-white rounded-tr-sm whitespace-pre-wrap break-words"
                   : "bg-(--surface-elevated) text-gray-200 rounded-tl-sm border border-gray-800/50"
               }`}
             >
@@ -316,7 +333,6 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
                   </span>
                 </div>
               )}
-              {msg.validacao && <CartaoValidacao validacao={msg.validacao} />}
               {msg.texto &&
                 (msg.tipo === "agente" ? (
                   <div className="markdown-mensagem prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-pre:bg-(--surface-base) prose-code:text-primary-light">
@@ -325,17 +341,38 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
                     </ReactMarkdown>
                   </div>
                 ) : (
-                  <span className="whitespace-pre-wrap wrap-break-word">
-                    {msg.texto}
-                  </span>
+                  msg.texto
                 ))}
+              {msg.fontes && msg.fontes.length > 0 && (
+                <details className="mt-3 pt-2 border-t border-gray-700/50 text-xs text-secondary">
+                  <summary className="cursor-pointer select-none font-medium hover:text-white">
+                    Fontes ({msg.fontes.length})
+                  </summary>
+                  <ul className="mt-2 space-y-2">
+                    {msg.fontes.map((fonte, i) => (
+                      <li key={`${fonte.chunk_id}-${i}`}>
+                        <span className="text-gray-300 font-medium">
+                          {fonte.projeto} › {fonte.documento}
+                          {fonte.secao ? ` › ${fonte.secao}` : ""}
+                        </span>
+                        <span className="ml-2 opacity-70">
+                          {Math.round(fonte.similaridade * 100)}%
+                        </span>
+                        <p className="mt-0.5 opacity-70 line-clamp-3 whitespace-pre-wrap">
+                          {fonte.trecho}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             </div>
           </div>
         ))}
         {carregando && (
           <div className="flex justify-start">
             <div className="bg-(--surface-elevated) text-secondary rounded-2xl rounded-tl-sm px-5 py-3 text-sm animate-pulse border border-gray-800/50">
-              Analisando documentos...
+              Pensando...
             </div>
           </div>
         )}
@@ -370,33 +407,33 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
         )}
 
         <div className="w-full max-w-4xl mx-auto flex items-end gap-3">
-          <div className="relative flex-1">
+          {/* Anexar arquivo: fora do campo de texto, alinhado à base como o botão de enviar */}
+          <input
+            ref={inputArquivoRef}
+            type="file"
+            accept={extensoes.join(",")}
+            onChange={arquivoSelecionado}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={abrirSeletorDeArquivo}
+            aria-label="Anexar arquivo"
+            title="Anexar arquivo (.txt ou .md)"
+            className="w-12 h-12 md:w-14 md:h-14 bg-(--surface-elevated) rounded-xl flex items-center justify-center border border-gray-700/50 hover:bg-gray-700/50 transition-colors duration-200 shrink-0"
+          >
+            <Paperclip size={20} className="text-secondary" />
+          </button>
+          <div className="flex-1">
             <textarea
-              ref={textareaRef}
+              ref={campoTextoRef}
               rows={1}
               value={mensagem}
               onChange={(event) => setMensagem(event.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Pergunte sobre regras, decisões arquiteturais ou use /validar para validar requisitos levantados..."
-              className="block w-full min-h-12 md:min-h-14 max-h-40 resize-none overflow-y-auto bg-(--surface-elevated) outline-none rounded-xl pl-4 pr-12 py-3 md:py-4 text-sm sm:text-base text-white focus:ring-2 focus:ring-primary border border-gray-700/50 transition duration-200"
+              className="block block w-full min-min-h-12 md:min-min-h-14 max-h-40 resize-none overflow-y-auto scrollbar-input max-h-40 resize-none overflow-y-auto bg-(--surface-elevated) outline-none rounded-xl px-4 py-3.5 sm:py-3 md:py-4 py-3 md:py-4 text-sm sm:text-base text-white focus:ring-2 focus:ring-primary border border-gray-700/50 transition duration-200"
             />
-            <input
-              ref={inputArquivoRef}
-              type="file"
-              accept={extensoes.join(",")}
-              onChange={arquivoSelecionado}
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={abrirSeletorDeArquivo}
-              className="absolute right-2 bottom-1.5 md:bottom-2.5 p-2 hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer"
-            >
-              <Paperclip
-                size={20}
-                className="text-secondary hover:text-white"
-              />
-            </button>
           </div>
           <button
             type="button"
