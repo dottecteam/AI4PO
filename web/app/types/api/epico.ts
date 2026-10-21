@@ -8,6 +8,8 @@ export interface Epico {
     resultadoEsperado: string;
     criteriosAceitacao: string[];
     createdAt: string;
+    totalFeatures: number;
+    totalPbis: number;
 }
 
 export interface EpicoInput {

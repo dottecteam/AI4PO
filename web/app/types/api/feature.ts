@@ -6,6 +6,7 @@ export interface Feature {
   objetivo: string;
   criteriosAceitacao: string[];
   createdAt: string;
+  totalPbis: number;
 }
 
 export interface FeatureInput{

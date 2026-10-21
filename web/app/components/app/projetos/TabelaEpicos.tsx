@@ -1,8 +1,6 @@
 "use client"
 
 import DropdownSection from "@/app/components/app/projetos/DropdownSection"
-import { features } from "@/app/mock/features"
-import { pbis } from "@/app/mock/pbis"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Epico } from "@/app/types/api/epico"
@@ -10,6 +8,8 @@ import { epicoService } from "@/app/services/API/projeto/EpicoService"
 import { useProjetoAtual } from "@/app/contexts/ProjetoContext"
 import EpicoCadastro from "./EpicoCadastro"
 import Searchbar from "@/app/components/app/Searchbar"
+import { featureService } from "@/app/services/API/projeto/FeatureService"
+import { pbiService } from "@/app/services/API/projeto/PBIService"
 
 export default function TabelaEpicos() {
   const projeto = useProjetoAtual()
@@ -20,18 +20,19 @@ export default function TabelaEpicos() {
   const [modalAberto, setModalAberto] = useState(false)
   const router = useRouter()
 
-  useEffect(() => {
-    async function carregarEpicos() {
-      if (!projeto) return
-      try {
-        const dados = await epicoService.listarPorProjeto(projeto.id)
-        setEpicos(dados)
-      } catch (erro) {
-        console.error("Erro ao carregar epicos:", erro)
-      } finally {
-        setCarregando(false)
-      }
+  async function carregarEpicos() {
+    if (!projeto) return
+    try {
+      const dados = await epicoService.listarPorProjeto(projeto.id)
+      setEpicos(dados)
+    } catch (erro) {
+      console.error("Erro ao carregar epicos:", erro)
+    } finally {
+      setCarregando(false)
     }
+  }
+
+  useEffect(() => {
     carregarEpicos()
   }, [projeto])
 
@@ -48,6 +49,7 @@ export default function TabelaEpicos() {
       <EpicoCadastro
         aberto={modalAberto}
         onFechar={() => setModalAberto(false)}
+        onCriado={carregarEpicos}
       />
 
       <Searchbar
@@ -59,7 +61,7 @@ export default function TabelaEpicos() {
       />
 
       {epicosFiltrados.length > 0 ? (
-        <table className="w-full text-left">
+        <table className="w-full max-w-full text-left">
           <thead>
             <tr className="[&>*]:border-l-1 [&>*]:border-[#EF7541] [&>*]:py-1 [&>*]:px-2">
               <th>Título</th>
@@ -78,20 +80,17 @@ export default function TabelaEpicos() {
                   router.push(`/projetos/${projeto.id}/epicos/${epico.id}`)
                 }}
               >
+                {/* Título */}
                 <td>{epico.titulo}</td>
+
+                {/* Data de criação */}
                 <td>{new Date(epico.createdAt).toLocaleDateString("pt-BR")}</td>
-                <td>
-                  {features.filter((feat) => feat.idEpico == epico.id).length}
-                </td>
-                <td>
-                  {
-                    pbis.filter(
-                      (pbi) =>
-                        pbi.idFeature in
-                        features.filter((feat) => feat.idEpico == epico.id),
-                    ).length
-                  }
-                </td>
+
+                {/* Número de Features */}
+                <td>{epico.totalFeatures}</td>
+
+                {/* Número de PBIs */}
+                <td>{epico.totalPbis}</td>
               </tr>
             ))}
           </tbody>

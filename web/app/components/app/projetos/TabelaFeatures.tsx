@@ -21,18 +21,19 @@ export default function TabelaFeatures() {
   const [modalAberto, setModalAberto] = useState(false)
   const router = useRouter()
 
-  useEffect(() => {
-    async function carregarFeatures() {
-      if (!epico) return
-      try {
-        const dados = await featureService.listarPorEpico(epico.id)
-        setFeatures(dados)
-      } catch (erro) {
-        console.error("Erro ao carregar features:", erro)
-      } finally {
-        setCarregando(false)
-      }
+  async function carregarFeatures() {
+    if (!epico) return
+    try {
+      const dados = await featureService.listarPorEpico(epico.id)
+      setFeatures(dados)
+    } catch (erro) {
+      console.error("Erro ao carregar features:", erro)
+    } finally {
+      setCarregando(false)
     }
+  }
+
+  useEffect(() => {
     carregarFeatures()
   }, [epico])
 
@@ -49,6 +50,7 @@ export default function TabelaFeatures() {
       <FeatureCadastro
         aberto={modalAberto}
         onFechar={() => setModalAberto(false)}
+        onCriado={carregarFeatures}
       />
 
       <Searchbar
@@ -80,9 +82,14 @@ export default function TabelaFeatures() {
                   )
                 }}
               >
+                {/* Título */}
                 <td>{feat.titulo}</td>
+
+                {/* Data de criação */}
                 <td>{new Date(feat.createdAt).toLocaleDateString("pt-BR")}</td>
-                <td>{pbis.filter((pbi) => pbi.idFeature == feat.id).length}</td>
+
+                {/* Número de PBIs */}
+                <td>{feat.totalPbis}</td>
               </tr>
             ))}
           </tbody>

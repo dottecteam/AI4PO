@@ -5,6 +5,7 @@ import { useProjetoAtual } from "@/app/contexts/ProjetoContext";
 import { epicoService } from "@/app/services/API/projeto/EpicoService";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation"
+import { InputLista } from "../../InputLista";
 
 export default function EpicoInfo() {
     const router = useRouter();
@@ -91,6 +92,40 @@ export default function EpicoInfo() {
         } catch (erro) {
             console.log("Erro ao excluir épico: ", erro)
         }
+    }
+
+
+    function adicionarEscopoMacro() {
+        setEscopoMacro((atuais) => [...atuais, ""]);
+    }
+
+    function alterarEscopoMacro(index: number, valor: string) {
+        setEscopoMacro((atuais) =>
+            atuais.map((escopo, i) =>
+                i === index ? valor : escopo)
+        );
+    }
+
+    function removerEscopoMacro(index: number) {
+        setEscopoMacro((atuais) =>
+            atuais.filter((_, i) => i !== index));
+    }
+
+    function adicionarCriterioAceitacao() {
+        setCriteriosAceitacao((atuais) => [...atuais, ""]);
+    }
+
+    function alterarCriteriosAceitacao(index: number, valor: string) {
+        setCriteriosAceitacao((atuais) =>
+            atuais.map((criterio, i) =>
+                i === index ? valor : criterio)
+        );
+    }
+
+    function removerCriterioAceitacao(index: number) {
+        setCriteriosAceitacao((atuais) =>
+            atuais.filter((_, i) => i !== index)
+        );
     }
 
     return (
@@ -239,38 +274,8 @@ export default function EpicoInfo() {
                         )}
                     </section>
 
-                    {/* Escopo Macro */}
-                    <section>
-                        <div className="mb-2 flex items-center border-l border-[#EF7541] pl-2">
-                            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#EF7541]">
-                                Escopo Macro
-                            </h2>
-                        </div>
-
-                        {editando ? (
-                            <textarea
-                                value={escopoMacro.join("\n")}
-                                onChange={(e) =>
-                                    setEscopoMacro(
-                                        e.target.value.split("\n")
-                                    )
-                                }
-                                rows={5}
-                                className="w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
-                            />
-                        ) : (
-                            <ul className="px-3 text-sm leading-6 text-gray-300">
-                                {escopoMacro.map((item, index) => (
-                                    <li key={index}>
-                                        <p>{item}</p>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </section>
-
                     {/* Resultado Esperado */}
-                    <section>
+                    <section className="col-span-full">
                         <div className="mb-2 flex items-center border-l border-[#EF7541] pl-2">
                             <h2 className="text-sm font-semibold uppercase tracking-wider text-[#EF7541]">
                                 Resultado Esperado
@@ -293,6 +298,34 @@ export default function EpicoInfo() {
                         )}
                     </section>
 
+                    {/* Escopo Macro */}
+                    <section>
+                        <div className="mb-2 flex items-center border-l border-[#EF7541] pl-2">
+                            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#EF7541]">
+                                Escopo Macro
+                            </h2>
+                        </div>
+
+                        {editando ? (
+                            <InputLista
+                                rotuloItem="Capacidade Macro"
+                                textoVazio="Nenhuma capacidade macro adicionada."
+                                textoBotao="Adicionar Capacidade"
+                                itens={escopoMacro}
+                                onAdicionar={adicionarEscopoMacro}
+                                onAlterar={alterarEscopoMacro}
+                                onRemover={removerEscopoMacro} />
+                        ) : (
+                            <ul className="px-3 text-sm leading-6 text-gray-300">
+                                {escopoMacro.map((item, index) => (
+                                    <li key={index}>
+                                        <p>{item}</p>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </section>
+
                     {/* Critérios de Aceitação */}
                     <section className="md:col-p-2">
                         <div className="mb-2 flex items-center border-l border-[#EF7541] pl-2">
@@ -302,16 +335,14 @@ export default function EpicoInfo() {
                         </div>
 
                         {editando ? (
-                            <textarea
-                                value={criteriosAceitacao.join("\n")}
-                                onChange={(e) =>
-                                    setCriteriosAceitacao(
-                                        e.target.value.split("\n")
-                                    )
-                                }
-                                rows={6}
-                                className="w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
-                            />
+                            < InputLista
+                                rotuloItem="Critério"
+                                textoVazio="Nenhum critério de aceitação adicionado."
+                                textoBotao="Adicionar Critério"
+                                itens={criteriosAceitacao}
+                                onAdicionar={adicionarCriterioAceitacao}
+                                onAlterar={alterarCriteriosAceitacao}
+                                onRemover={removerCriterioAceitacao} />
                         ) : (
                             <ul className="px-3 text-sm leading-6 text-gray-300">
                                 {criteriosAceitacao.map((criterio, index) => (

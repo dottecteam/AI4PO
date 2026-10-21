@@ -10,9 +10,17 @@ class EpicoSerializer(serializers.ModelSerializer):
     criteriosAceitacao = serializers.ListField(child=serializers.CharField(), source='criterios_de_aceitacao')
     createdAt = serializers.DateTimeField(source='criado_em', read_only=True)
 
+    # Contagens vindas do annotate da view
+    totalFeatures = serializers.IntegerField(source='total_features', read_only=True, default=0)
+    totalPbis = serializers.IntegerField(source='total_pbis', read_only=True, default=0)
+
     class Meta:
         model = Epico
-        fields = ['id', 'titulo', 'descricao', 'objetivo', 'idProjeto', 'escopoMacro', 'resultadoEsperado', 'criteriosAceitacao', 'createdAt']
+        fields = [
+            'id', 'titulo', 'descricao', 'objetivo', 'idProjeto',
+            'escopoMacro', 'resultadoEsperado', 'criteriosAceitacao',
+            'createdAt', 'totalFeatures', 'totalPbis',
+        ]
 
 
 
@@ -22,9 +30,11 @@ class FeatureSerializer(serializers.ModelSerializer):
     criteriosAceitacao = serializers.ListField(child=serializers.CharField(), source='criterios_de_aceitacao')
     createdAt = serializers.DateTimeField(source='criado_em', read_only=True)
 
+    # Contagem vinda da view
+    totalPbis = serializers.IntegerField(source="total_pbis", read_only=True, default=0)
     class Meta:
         model = Feature
-        fields = ['id', 'idEpico', 'titulo', 'descricao', 'objetivo', 'criteriosAceitacao', 'createdAt']
+        fields = ['id', 'idEpico', 'titulo', 'descricao', 'objetivo', 'criteriosAceitacao', 'createdAt', 'totalPbis']
 
 
 class CenarioSerializer(serializers.ModelSerializer):
@@ -44,7 +54,7 @@ class PBISerializer(serializers.ModelSerializer):
     cenarios = CenarioSerializer(many=True, read_only=True)
 
     createdAt = serializers.DateTimeField(source='criado_em', read_only=True)
-    regras = serializers.CharField(source='regras_observacoes', required=False)
+    regras = serializers.CharField(source='regras_observacoes', required=False, allow_blank = True)
 
     class Meta:
         model = PBI
@@ -69,7 +79,7 @@ class PBISerializer(serializers.ModelSerializer):
             userstory_como=user_story.get('como', ''),
             userstory_quero=user_story.get('quero', ''),
             userstory_paraque=user_story.get('paraQue', ''),
-            regras_observacoes=validated_data.get('regras'),
+            regras_observacoes=validated_data.get('regras_observacoes'),
         )
 
         # Cria cada cenário já vinculado a esse PBI (relação 1:N)
@@ -89,7 +99,7 @@ class PBISerializer(serializers.ModelSerializer):
         cenarios_data = self.initial_data.get('cenarios')
 
         instance.titulo = validated_data.get('titulo', instance.titulo)
-        instance.regras_observacoes = validated_data.get('regras', instance.regras_observacoes)
+        instance.regras_observacoes = validated_data.get('regras_observacoes', instance.regras_observacoes)
 
         if user_story is not None:
             instance.userstory_como = user_story.get('como', instance.userstory_como)

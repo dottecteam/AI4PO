@@ -180,15 +180,15 @@ export default function PBIInfo() {
                 <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
                     {/* User Story */}
                     <section className="md:col-span-2">
-                        <div className="mb-4 flex items-center border-l border-[#EF7541] pl-2">
+                        <div className="mb-1 flex items-center border-l border-[#EF7541] pl-2">
                             <h2 className="text-sm font-semibold uppercase tracking-wider text-[#EF7541]">
                                 User Story
                             </h2>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <div className="flex flex-col gap-1">
                             <div>
-                                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                <span className="text-xs font-semibold uppercase text-gray-500">
                                     Como
                                 </span>
 
@@ -197,17 +197,17 @@ export default function PBIInfo() {
                                         value={como}
                                         onChange={(e) => setComo(e.target.value)}
                                         rows={3}
-                                        className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
+                                        className="w-full mt-1 resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
                                     />
                                 ) : (
-                                    <p className="mt-1 text-sm leading-6 text-gray-300">
+                                    <p className="text-sm pl-2 text-gray-300">
                                         {como}
                                     </p>
                                 )}
                             </div>
 
                             <div>
-                                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                <span className="text-xs font-semibold uppercase text-gray-500">
                                     Quero
                                 </span>
 
@@ -216,17 +216,17 @@ export default function PBIInfo() {
                                         value={quero}
                                         onChange={(e) => setQuero(e.target.value)}
                                         rows={3}
-                                        className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
+                                        className="w-full mt-1 resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
                                     />
                                 ) : (
-                                    <p className="mt-1 text-sm leading-6 text-gray-300">
+                                    <p className="text-sm pl-2 ext-gray-300">
                                         {quero}
                                     </p>
                                 )}
                             </div>
 
                             <div>
-                                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                <span className="text-xs font-semibold uppercase text-gray-500">
                                     Para que
                                 </span>
 
@@ -235,10 +235,10 @@ export default function PBIInfo() {
                                         value={paraQue}
                                         onChange={(e) => setParaQue(e.target.value)}
                                         rows={3}
-                                        className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
+                                        className="w-full mt-1 resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
                                     />
                                 ) : (
-                                    <p className="mt-1 text-sm leading-6 text-gray-300">
+                                    <p className="text-sm pl-1 text-gray-300">
                                         {paraQue}
                                     </p>
                                 )}
@@ -248,7 +248,7 @@ export default function PBIInfo() {
 
                     {/* Cenários */}
                     <section className="md:col-span-2">
-                        <div className="mb-4 flex items-center border-l border-[#EF7541] pl-2">
+                        <div className="mb-1 flex items-center border-l border-[#EF7541] pl-2">
                             <h2 className="text-sm font-semibold uppercase tracking-wider text-[#EF7541]">
                                 Cenários
                             </h2>
@@ -260,7 +260,7 @@ export default function PBIInfo() {
                                     key={index}
                                     className="rounded-lg border border-gray-800 p-4"
                                 >
-                                    <div className="mb-4 flex items-center justify-between">
+                                    <div className="mb-1 flex items-center justify-between">
                                         <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
                                             Cenário {index + 1}
                                         </span>
@@ -289,9 +289,9 @@ export default function PBIInfo() {
                                         )}
                                     </div>
 
-                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                    <div className="flex flex-col gap-1">
                                         <div>
-                                            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            <span className="text-xs font-semibold uppercase text-gray-500">
                                                 Dado
                                             </span>
 
@@ -309,7 +309,7 @@ export default function PBIInfo() {
                                                     className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
                                                 />
                                             ) : (
-                                                <p className="mt-1 text-sm leading-6 text-gray-300">
+                                                <p className="text-sm pl-2 text-gray-300">
                                                     {cenario.dado}
                                                 </p>
                                             )}
@@ -334,7 +334,7 @@ export default function PBIInfo() {
                                                     className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
                                                 />
                                             ) : (
-                                                <p className="mt-1 text-sm leading-6 text-gray-300">
+                                                <p className="text-sm pl-2 text-gray-300">
                                                     {cenario.quando}
                                                 </p>
                                             )}
@@ -359,7 +359,7 @@ export default function PBIInfo() {
                                                     className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
                                                 />
                                             ) : (
-                                                <p className="mt-1 text-sm leading-6 text-gray-300">
+                                                <p className="text-sm pl-2 text-gray-300">
                                                     {cenario.entao}
                                                 </p>
                                             )}

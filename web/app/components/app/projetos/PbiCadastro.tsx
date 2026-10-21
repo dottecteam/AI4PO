@@ -13,9 +13,10 @@ interface Cenario {
 interface PbiCadastroProps {
     aberto: boolean;
     onFechar: () => void;
+    onCriado: () => void;
 }
 
-export default function PbiCadastro({ aberto, onFechar }: PbiCadastroProps) {
+export default function PbiCadastro({ aberto, onFechar, onCriado }: PbiCadastroProps) {
     const feature = useFeatureAtual();
 
     const [titulo, setTitulo] = useState("");
@@ -75,6 +76,7 @@ export default function PbiCadastro({ aberto, onFechar }: PbiCadastroProps) {
             setAvisoErro(false);
 
             onFechar();
+            onCriado();
         } catch (erro) {
             console.error("Erro ao cadastrar pbi:", erro);
         }
@@ -137,7 +139,7 @@ export default function PbiCadastro({ aberto, onFechar }: PbiCadastroProps) {
                             </h3>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <div className="flex flex-col gap-4">
                             <div>
                                 <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
                                     Como
@@ -146,8 +148,7 @@ export default function PbiCadastro({ aberto, onFechar }: PbiCadastroProps) {
                                 <textarea
                                     value={como}
                                     onChange={(e) => setComo(e.target.value)}
-                                    rows={3}
-                                    className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
+                                    className="mt-1 w-full rounded-md border border-gray-700 bg-[#111827] px-2 py-1 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
                                 />
                             </div>
 
@@ -159,8 +160,7 @@ export default function PbiCadastro({ aberto, onFechar }: PbiCadastroProps) {
                                 <textarea
                                     value={quero}
                                     onChange={(e) => setQuero(e.target.value)}
-                                    rows={3}
-                                    className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
+                                    className="mt-1 w-full rounded-md border border-gray-700 bg-[#111827] px-2 py-1 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
                                 />
                             </div>
 
@@ -172,8 +172,7 @@ export default function PbiCadastro({ aberto, onFechar }: PbiCadastroProps) {
                                 <textarea
                                     value={paraQue}
                                     onChange={(e) => setParaQue(e.target.value)}
-                                    rows={3}
-                                    className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
+                                    className="mt-1 w-full rounded-md border border-gray-700 bg-[#111827] px-2 py-1 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
                                 />
                             </div>
                         </div>
@@ -218,7 +217,7 @@ export default function PbiCadastro({ aberto, onFechar }: PbiCadastroProps) {
                                         </button>
                                     </div>
 
-                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                    <div className="flex flex-col gap-4">
                                         <div>
                                             <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
                                                 Dado
@@ -229,8 +228,7 @@ export default function PbiCadastro({ aberto, onFechar }: PbiCadastroProps) {
                                                 onChange={(e) =>
                                                     alterarCenario(index, "dado", e.target.value)
                                                 }
-                                                rows={3}
-                                                className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
+                                                className="mt-1 w-full rounded-md border border-gray-700 bg-[#111827] px-2 py-1 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
                                             />
                                         </div>
 
@@ -244,8 +242,7 @@ export default function PbiCadastro({ aberto, onFechar }: PbiCadastroProps) {
                                                 onChange={(e) =>
                                                     alterarCenario(index, "quando", e.target.value)
                                                 }
-                                                rows={3}
-                                                className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
+                                                className="mt-1 w-full rounded-md border border-gray-700 bg-[#111827] px-2 py-1 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
                                             />
                                         </div>
 
@@ -259,8 +256,7 @@ export default function PbiCadastro({ aberto, onFechar }: PbiCadastroProps) {
                                                 onChange={(e) =>
                                                     alterarCenario(index, "entao", e.target.value)
                                                 }
-                                                rows={3}
-                                                className="mt-1 w-full resize-none rounded-md border border-gray-700 bg-[#111827] px-3 py-2 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
+                                                className="mt-1 w-full rounded-md border border-gray-700 bg-[#111827] px-2 py-1 text-sm leading-6 text-gray-200 outline-none focus:border-[#EF7541]"
                                             />
                                         </div>
                                     </div>

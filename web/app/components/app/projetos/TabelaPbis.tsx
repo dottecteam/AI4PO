@@ -22,18 +22,19 @@ export default function TabelaPbis() {
   const [modalAberto, setModalAberto] = useState(false)
   const router = useRouter()
 
-  useEffect(() => {
-    async function carregarPbis() {
-      if (!feature) return
-      try {
-        const dados = await pbiService.listarPorFeature(feature.id)
-        setPbis(dados)
-      } catch (erro) {
-        console.error("Erro ao carregar pbis:", erro)
-      } finally {
-        setCarregando(false)
-      }
+  async function carregarPbis() {
+    if (!feature) return
+    try {
+      const dados = await pbiService.listarPorFeature(feature.id)
+      setPbis(dados)
+    } catch (erro) {
+      console.error("Erro ao carregar pbis:", erro)
+    } finally {
+      setCarregando(false)
     }
+  }
+
+  useEffect(() => {
     carregarPbis()
   }, [feature])
 
@@ -50,6 +51,7 @@ export default function TabelaPbis() {
       <PbiCadastro
         aberto={modalAberto}
         onFechar={() => setModalAberto(false)}
+        onCriado={carregarPbis}
       />
 
       <Searchbar
