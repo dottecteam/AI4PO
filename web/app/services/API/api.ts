@@ -25,11 +25,12 @@ export const api = {
       headers: { "Content-Type": "application/json" },
     }),
 
-  post: <T>(path: string, body: unknown) =>
+  post: <T>(path: string, body: unknown, options?: Pick<RequestInit, "signal">) =>
     apiFetch<T>(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: options?.signal,
     }),
 
   // Sem Content-Type manual: o navegador define o boundary certo do multipart sozinho.
