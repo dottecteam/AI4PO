@@ -166,6 +166,15 @@ def _ler_anexo(arquivo):
         raise ValueError("O arquivo enviado não é um formato de texto válido (UTF-8).")
 
 
+def _mesclar_fontes(fontes, novas):
+    """Mescla os trechos de `novas` em `fontes`, sem duplicar por chunk_id."""
+    existentes = {f["chunk_id"] for f in fontes}
+    for f in novas:
+        if f["chunk_id"] not in existentes:
+            fontes.append(f)
+            existentes.add(f["chunk_id"])
+
+
 # ==========================================
 # DISPATCHER (MAPEAMENTO DE FUNÇÕES)
 # ==========================================
@@ -307,7 +316,10 @@ class ChatView(APIView):
             # ==========================================
             # ROTEAMENTO: reformatar / ajustar / conversar
             # ==========================================
-            if message.strip() and not documento_texto:
+            # Comandos explícitos (ex.: /validar) não passam pelo roteador LLM:
+            # ele é imprevisível com o modelo pequeno e pode desviar a mensagem
+            # para reformatação, pulando a validação determinística abaixo.
+            if message.strip() and not documento_texto and not message.strip().startswith("/"):
                 anterior = reformatacao_pendente(conversa) if conversa else None
                 intencao, tipo = classificar_intencao(
                     message, ultima_foi_reformatacao=anterior is not None
@@ -350,7 +362,9 @@ class ChatView(APIView):
             conteudo_system = (
                 f"Contexto do sistema: A data e hora exata agora é {data_hora_formatada}. "
                 "Local: São José dos Campos, SP. "
-                "LEMBRETE CRÍTICO: Responda SEMPRE em texto humano puro. NUNCA imprima JSONs."
+                "IMPORTANTE: para perguntas sobre projetos, documentos, equipe ou decisões, "
+                "ACIONE as ferramentas de busca ANTES de responder. A resposta FINAL ao usuário "
+                "deve ser em texto corrido (sem JSON) — mas usar ferramentas é permitido e encorajado."
             )
             # Memória de longo prazo: o que já saiu da janela de mensagens vive no resumo
             if conversa and conversa.resumo:
@@ -408,12 +422,55 @@ class ChatView(APIView):
 
             # Memória multi-turno: histórico vem do banco (conversa nova não tem nenhum)
             historico = carregar_historico(conversa) if conversa else []
+            fontes = []  # origem (projeto/documento) dos trechos que a busca trouxe
+
+            # Recuperação DETERMINÍSTICA (RAG de documentos + GraphRAG): quando há
+            # pergunta textual, a busca SEMPRE roda aqui e o resultado é injetado no
+            # prompt. A resposta fica ancorada nos dados do projeto em vez de depender
+            # do modelo "decidir" chamar a ferramenta (pular a busca gerava alucinação).
+            if message.strip():
+                try:
+                    contexto_docs = responder_com_base_vetorial(
+                        pergunta=message, usuario=request.user,
+                        projeto_id=projeto_id, fontes=fontes,
+                    )
+                except FalhaDeEmbeddingError:
+                    logger.warning("Embeddings indisponíveis; seguindo sem contexto vetorial.")
+                    contexto_docs = ""
+                contexto_grafo = ""
+                if projeto_id:
+                    try:
+                        contexto_grafo = buscar_no_grafo(pergunta=message, projeto_id=projeto_id) or ""
+                    except Exception:
+                        logger.exception("Falha ao consultar o grafo de conhecimento.")
+                        contexto_grafo = ""
+                # Só injeta se a relevância for alta: saudações casam com similaridade
+                # baixa (~0.58) e não devem puxar contexto; pergunta real sobre o
+                # projeto fica em ~0.75+. O corte 0.65 separa bem os dois casos.
+                melhor_sim = max((f.get("similaridade", 0.0) for f in fontes), default=0.0)
+                relevante = melhor_sim >= 0.65
+                if not relevante:
+                    fontes = []  # saudação/pergunta solta: nao mostra fontes irrelevantes
+                partes = []
+                if relevante and contexto_docs.strip():
+                    partes.append(contexto_docs)
+                if relevante and contexto_grafo.strip():
+                    partes.append(contexto_grafo)
+                if partes:
+                    conteudo_usuario += (
+                        "\n\n=== CONTEXTO DOS PROJETOS (documentos + grafo) ===\n"
+                        + "\n\n".join(partes)
+                        + "\n=== FIM DO CONTEXTO ===\n"
+                        "Responda usando SOMENTE esse contexto. Se algo não constar nele, "
+                        "diga que não consta no contexto — NÃO invente."
+                    )
+
             messages = [system_msg, *historico, {"role": "user", "content": conteudo_usuario}]
 
-            # Chamada inicial: o agente decide se usa ferramentas
-            response_message = _chamar_ollama(messages, com_tools=True)
-
-            fontes = []  # origem (projeto/documento) dos trechos que a busca trouxe
+            # Ferramentas só entram no caso de documento ANEXADO (analisar_documento_anexado).
+            # Em pergunta comum o contexto já foi injetado acima, entao nao se passa tools
+            # (evita a busca rodar duas vezes e estourar a latencia).
+            response_message = _chamar_ollama(messages, com_tools=bool(documento_texto))
             tool_calls = response_message.get("tool_calls")
             if tool_calls:
                 messages.append(response_message)
