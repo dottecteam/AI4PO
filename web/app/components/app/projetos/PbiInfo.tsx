@@ -1,17 +1,24 @@
 "use client";
 
 import { usePbiAtual, useSetPbicoAtual } from "@/app/contexts/PbiContext";
-import { pbis } from "@/app/mock/pbis";
 import { pbiService } from "@/app/services/API/projeto/PBIService";
+import { useSimilarityCheck } from "@/app/hooks/useSimilarityCheck";
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react";
+import type { PBI } from "@/app/types/api/pbi";
+import SimilarityAlert from "./SimilarityAlert";
 
 
 export default function PBIInfo() {
-    const router = useRouter();
     const pbi = usePbiAtual();
-    const setPbi = useSetPbicoAtual();
     if (!pbi) return <p className="text-white text-center">PBI não encontrado.</p>;
+
+    return <PbiDetalhes key={pbi.id} pbi={pbi} />;
+}
+
+function PbiDetalhes({ pbi }: { pbi: PBI }) {
+    const router = useRouter();
+    const setPbi = useSetPbicoAtual();
 
     const [editando, setEditando] = useState(false);
     const [menuAberto, setMenuAberto] = useState(false);
@@ -22,6 +29,9 @@ export default function PBIInfo() {
     const [paraQue, setParaQue] = useState(pbi.userStory.paraQue);
     const [regras, setRegras] = useState(pbi.regras ?? "");
     const [cenarios, setCenarios] = useState(pbi.cenarios);
+    const { resultados, erro: erroSimilaridade, limpar } = useSimilarityCheck({
+        titulo, como, quero, paraQue, ativo: editando,
+    });
 
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -57,6 +67,7 @@ export default function PBIInfo() {
             setRegras(pbi.regras ?? "");
             setCenarios(pbi.cenarios);
 
+            limpar();
             setEditando(false);
         } catch (erro) {
             console.log("Erro ao cancelar edição de PBI: ", erro)
@@ -68,6 +79,7 @@ export default function PBIInfo() {
         try {
             const pbiAtualizado = await pbiService.editar(pbi.id, { titulo, userStory: { como, quero, paraQue }, regras, cenarios });
             setPbi?.(pbiAtualizado);
+            limpar();
             setEditando(false);
         } catch (erro) {
             console.log("Erro ao confirmar edição de PBI: ", erro)
@@ -244,6 +256,14 @@ export default function PBIInfo() {
                                 )}
                             </div>
                         </div>
+                        {editando && (
+                            <>
+                                <SimilarityAlert resultados={resultados} />
+                                {erroSimilaridade && (
+                                    <p className="mt-2 text-xs text-gray-500">{erroSimilaridade}</p>
+                                )}
+                            </>
+                        )}
                     </section>
 
                     {/* Cenários */}
