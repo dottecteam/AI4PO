@@ -8,22 +8,32 @@ from decouple import config
 from django.db import transaction
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.views import APIView
-
-from ai.indexing import FalhaDeEmbeddingError
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
 from ai import similarity
-from ai.retrieval import responder_com_base_vetorial, responder_com_documento
 from ai.graphrag import buscar_no_grafo
+from ai.indexing import FalhaDeEmbeddingError
+from ai.retrieval import (
+    _formatar_contexto,
+    buscar_trechos,
+    responder_com_base_vetorial,
+    responder_com_documento,
+)
 from users.authentication import CookieJWTAuthentication
 
 from .history import carregar_historico
 from .models import Conversa, MensagemChat
 from .titulo import gerar_titulo
-from .validacao_chat import MENSAGEM_SEM_MODELO, detectar_especificacao, montar_validacao, para_markdown, resumo_curto
+from .validacao_chat import (
+    MENSAGEM_SEM_MODELO,
+    detectar_especificacao,
+    montar_validacao,
+    para_markdown,
+    resumo_curto,
+)
 from .summary import atualizar_resumo
 from .reformatar import (
     ReformatacaoError,
@@ -47,48 +57,6 @@ MSG_VAZIA = "Não consegui gerar uma resposta para essa pergunta. Tente reformul
 
 # Reaproveita a conexão TCP com o Ollama entre as chamadas (pedido -> ferramenta -> resposta).
 _http = requests.Session()
-
-
-class SimilarityCheckView(APIView):
-    def post(self, request):
-        texto = request.data.get("texto") if isinstance(request.data, dict) else None
-        if not isinstance(texto, str):
-            return Response(
-                {"detail": "O campo texto deve ser uma string."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if not texto.strip():
-            return Response({"resultados": []})
-
-        try:
-            resultados = similarity.verificar_similaridade(texto)
-        except FalhaDeEmbeddingError:
-            return Response(
-                {"detail": "Verificação de similaridade indisponível."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-
-        return Response(
-            {
-                "resultados": [
-                    {
-                        "chunkId": resultado.chunk_id,
-                        "conteudo": resultado.conteudo,
-                        "similaridade": resultado.similaridade,
-                        "projeto": {
-                            "id": resultado.projeto_id,
-                            "titulo": resultado.projeto_titulo,
-                        },
-                        "documento": {
-                            "id": resultado.documento_id,
-                            "nome": resultado.documento_nome,
-                        },
-                    }
-                    for resultado in resultados
-                ]
-            }
-        )
-
 
 # ==========================================
 # DEFINIÇÃO DAS FERRAMENTAS (SKILLS)
@@ -214,22 +182,27 @@ def executar_ferramenta(nome_ferramenta, args, message, projeto_id, documento_te
     elif nome_ferramenta == "consultar_grafo_conhecimento":
         pergunta = args.get("pergunta", message)
 
-        # Consulta o grafo para recuperar relações entre pessoas, requisitos e decisões.
+        novas = []
+        resposta_docs = responder_com_base_vetorial(
+            pergunta=pergunta,
+            usuario=usuario,
+            projeto_id=projeto_id,
+            fontes=novas,
+        )
+        _mesclar_fontes(fontes, novas)
+
         resposta_grafo = buscar_no_grafo(
             pergunta=pergunta,
             projeto_id=projeto_id,
         )
 
-        # Complementa o grafo com trechos literais dos documentos.
-        # A busca vetorial também preenche a lista `fontes` retornada ao frontend.
-        resposta_docs = responder_com_base_vetorial(
-            pergunta=pergunta,
-            usuario=usuario,
-            projeto_id=projeto_id,
-            fontes=fontes,
-        )
+        if resposta_grafo and str(resposta_grafo).strip():
+            return (
+                f"{resposta_docs}\n\n"
+                f"Informações do grafo:\n{resposta_grafo}"
+            )
 
-        return f"{resposta_grafo}\\n\\n{resposta_docs}"
+        return resposta_docs
 
     elif nome_ferramenta == "analisar_documento_anexado":
         if documento_texto:
@@ -245,6 +218,52 @@ def executar_ferramenta(nome_ferramenta, args, message, projeto_id, documento_te
 # ==========================================
 # VIEW PRINCIPAL (AGENTIC LOOP)
 # ==========================================
+class SimilarityCheckView(APIView):
+    def post(self, request):
+        texto = (
+            request.data.get("texto")
+            if isinstance(request.data, dict)
+            else None
+        )
+
+        if not isinstance(texto, str):
+            return Response(
+                {"detail": "O campo texto deve ser uma string."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not texto.strip():
+            return Response({"resultados": []})
+
+        try:
+            resultados = similarity.verificar_similaridade(texto)
+        except FalhaDeEmbeddingError:
+            return Response(
+                {"detail": "Verificação de similaridade indisponível."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response(
+            {
+                "resultados": [
+                    {
+                        "chunkId": resultado.chunk_id,
+                        "conteudo": resultado.conteudo,
+                        "similaridade": resultado.similaridade,
+                        "projeto": {
+                            "id": resultado.projeto_id,
+                            "titulo": resultado.projeto_titulo,
+                        },
+                        "documento": {
+                            "id": resultado.documento_id,
+                            "nome": resultado.documento_nome,
+                        },
+                    }
+                    for resultado in resultados
+                ]
+            }
+        )
+    
 class ChatView(APIView):
     authentication_classes = [CookieJWTAuthentication]
     permission_classes = [IsAuthenticated]  # necessário p/ filtrar conversas por usuario_po=request.user
