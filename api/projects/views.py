@@ -114,6 +114,17 @@ class DocumentoUploadView(APIView):
 
         executar_indexacao_documento(documento)
 
+        # GraphRAG automático: monta o grafo em background (não trava a requisição);
+        # o frontend acompanha o progresso no endpoint de status do documento.
+        try:
+            from ai.graphrag import agendar_ingestao_grafo
+            agendar_ingestao_grafo(documento)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Falha ao agendar a ingestão do grafo para o documento %s.", documento.pk
+            )
+
         return Response(
             DocumentoUploadSerializer(
                 documento,
@@ -188,6 +199,17 @@ class DocumentoReprocessarView(APIView):
             )
 
         executar_indexacao_documento(documento)
+
+        # GraphRAG automático: monta o grafo em background (não trava a requisição);
+        # o frontend acompanha o progresso no endpoint de status do documento.
+        try:
+            from ai.graphrag import agendar_ingestao_grafo
+            agendar_ingestao_grafo(documento)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Falha ao agendar a ingestão do grafo para o documento %s.", documento.pk
+            )
 
         return Response(
             DocumentoUploadSerializer(

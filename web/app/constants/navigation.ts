@@ -1,9 +1,10 @@
-import { Home, MessagesSquare, FolderOpen, Loader, Settings, CircleUserRound, ShieldCheck } from "lucide-react"
+import { Home, MessagesSquare, FolderOpen, Loader, Settings, CircleUserRound, ShieldCheck, Network } from "lucide-react"
 
 export const PAGINAS_PRINCIPAIS = [
     { icone: Home, label: "Página Inicial", rota: "/dashboard" },
     { icone: MessagesSquare, label: "ChatBot", rota: "/chatbot" },
     { icone: FolderOpen, label: "Projetos", rota: "/projetos" },
+    { icone: Network, label: "Grafo Global", rota: "/grafo" },
     { icone: Loader, label: "Competências", rota: "/competencias" },
 ]
 

@@ -123,3 +123,56 @@ class Comunidade(models.Model):
 
     def __str__(self):
         return self.titulo or f"Comunidade {self.id}"
+
+
+class ProgressoGrafo(models.Model):
+    """Progresso da ingestão do GraphRAG de um documento.
+
+    Alimenta a barra de % no frontend: o upload dispara a ingestão em
+    background e o front consulta este registro via endpoint de status.
+    """
+    ESTADOS = (
+        ('processando', 'Processando'),
+        ('concluido', 'Concluído'),
+        ('erro', 'Erro'),
+    )
+    documento = models.ForeignKey(Documento, on_delete=models.CASCADE, related_name='progressos_grafo')
+    projeto = models.ForeignKey(Projeto, on_delete=models.CASCADE, related_name='progressos_grafo')
+    total_chunks = models.IntegerField(default=0)
+    chunks_processados = models.IntegerField(default=0)
+    status = models.CharField(max_length=20, choices=ESTADOS, default='processando')
+    erro = models.TextField(blank=True, default='')
+    iniciado_em = models.DateTimeField(auto_now_add=True)
+    finalizado_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-iniciado_em']
+
+    @property
+    def percentual(self):
+        if self.total_chunks <= 0:
+            return 100 if self.status == 'concluido' else 0
+        return min(100, round(self.chunks_processados * 100 / self.total_chunks))
+
+    def __str__(self):
+        return f"Grafo doc {self.documento_id}: {self.chunks_processados}/{self.total_chunks} ({self.status})"
+
+
+class LayoutGrafo(models.Model):
+    """Posições dos nós do grafo salvas pelo usuário (estilo Obsidian: fixa onde arrumou).
+
+    Um registro por (usuário, escopo). `projeto` nulo = layout do grafo GLOBAL
+    (todos os projetos juntos); com `projeto` = layout daquele projeto.
+    `posicoes` é um JSON { "<entidade_id>": {"x": <num>, "y": <num> } }.
+    """
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='layouts_grafo')
+    projeto = models.ForeignKey(Projeto, on_delete=models.CASCADE, null=True, blank=True, related_name='layouts_grafo')
+    posicoes = models.JSONField(default=dict, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "Layouts de grafo"
+
+    def __str__(self):
+        escopo = f"projeto {self.projeto_id}" if self.projeto_id else "global"
+        return f"Layout {escopo} de {self.usuario_id} ({len(self.posicoes)} nós)"

@@ -40,6 +40,7 @@ from ai.graphrag import (
     _termos_da_pergunta,
     buscar_no_grafo,
     detectar_comunidades,
+    embeddar_entidades,
     ingestir,
 )
 from ai.models import ChunkDoc, Comunidade, Entidade, Relacao
@@ -575,349 +576,30 @@ class IngestaoDoGrafoTests(TestCase):
 
     # --- leitura da resposta do modelo ----------------------------------------
 
-    def test_extrair_json_tolera_cerca_markdown_e_texto_ao_redor(self):
-        alvo = self._saida([{'nome': 'Frontend', 'tipo': 'sistema', 'descricao': ''}], [])
-        self.assertEqual(_extrair_json('Claro!\n```json\n' + alvo + '\n```\n'), json.loads(alvo))
-
-    def test_extrair_json_recusa_objeto_truncado(self):
-        self.assertIsNone(_extrair_json('{"entidades": [{"nome": "sem fim"'))
-
-
-# ---------------------------------------------------------------------------
-# GraphRAG (tasks #13-1 a #13-3): identidade de nós e retrieval no grafo.
-# ---------------------------------------------------------------------------
-
-class IdentidadeDeNoTests(TestCase):
-    """Canonização sem dicionário de apelidos: handle e nome real são o mesmo nó."""
-
-    def test_handle_e_nome_real_colapsam_na_mesma_chave(self):
-        self.assertEqual(_chave_identidade('kayanmatta'), _chave_identidade('Kayan da Matta'))
-        self.assertEqual(_chave_identidade('KauanDomingues'), _chave_identidade('Kauan Domingues'))
-
-    def test_pessoas_diferentes_nao_colapsam(self):
-        self.assertNotEqual(_chave_identidade('João Paulo'), _chave_identidade('Paulo João'))
-        self.assertNotEqual(_chave_identidade('frontend do AI4PO'), _chave_identidade('frontend'))
-
-    def test_rotulo_legivel_vence_o_handle(self):
-        self.assertTrue(_nome_melhor('Kayan da Matta', 'kayanmatta'))
-        self.assertFalse(_nome_melhor('kayanmatta', 'Kayan da Matta'))
-
-    def test_termos_miudos_foram_descartados_da_busca(self):
-        # A pergunta passa pela MESMA normalização dos nós: 'embeddings' vira
-        # 'embedding' aqui e no nome do nó, e é isso que faz os dois se acharem.
-        termos = _termos_da_pergunta('Quem é o dono da pipeline de embeddings?')
-        self.assertIn('pipeline', termos)
-        self.assertIn('embedding', termos)
-        for miuda in ('o', 'da', 'de', 'e'):
-            self.assertNotIn(miuda, termos)
-
-
-@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
-class RetrievalNoGrafoTests(TestCase):
-    """O grafo responde pergunta de relacionamento, dentro de um único projeto."""
-
-    def setUp(self):
-        po = UsuarioPO.objects.create_user(email='po@pro4tech.com', nome='PO', password='x')
-        self.projeto = Projeto.objects.create(usuario_po=po, titulo='PayCore', descricao='pagamentos')
-        outro = UsuarioPO.objects.create_user(email='outro@pro4tech.com', nome='Outro', password='x')
-        self.projeto_alheio = Projeto.objects.create(usuario_po=outro, titulo='RealIT', descricao='credito')
-
-        documento = Documento.objects.create(projeto=self.projeto, nome='atas.md', tipo='md')
-        self.chunk = ChunkDoc.objects.create(
-            documento=documento, projeto=self.projeto,
-            conteudo='Marya entregou o frontend do chatbot.', embedding=[0.0] * 768,
-        )
-
-        marya = self._no('Marya Vitória', 'pessoa', self.projeto, 'Desenvolvedora do time')
-        frontend = self._no('frontend do chatbot', 'artefato', self.projeto, 'Interface do chatbot')
-        decisao = self._no('Decisão de layout', 'decisao', self.projeto, 'Definida na sprint 2')
-        self._aresta(marya, frontend, 'implementa', 0.9)
-        self._aresta(frontend, decisao, 'deriva_de', 0.7)
-
-        comunidade = Comunidade.objects.create(
-            projeto=self.projeto, titulo='Entregas de interface',
-            resumo='Agrupa o frontend e quem o construiu.', tamanho=2,
-        )
-        comunidade.membros.set([marya, frontend])
-
-        analista = self._no('Renata Prado', 'pessoa', self.projeto_alheio, 'Analista de crédito')
-        self._aresta(analista, self._no('Cooperativa Vale Norte', 'sistema', self.projeto_alheio), 'pertence_a', 0.8)
-
-    def _no(self, nome, tipo, projeto, descricao=''):
-        return Entidade.objects.create(
-            nome=nome, chave=_chave_identidade(nome), tipo=tipo, descricao=descricao, projeto=projeto,
-        )
-
-    def _aresta(self, origem, destino, tipo, confianca):
-        aresta = Relacao.objects.create(
-            origem=origem, destino=destino, tipo=tipo, confianca=confianca, projeto=self.projeto,
-        )
-        aresta.evidencias.add(self.chunk)
-        return aresta
-
-    def test_pergunta_de_relacionamento_traz_pessoa_e_artefato(self):
-        resposta = buscar_no_grafo('quem implementou o frontend do chatbot?', self.projeto.id)
-        self.assertIn('Marya Vitória', resposta)
-        self.assertIn('frontend do chatbot', resposta)
-        self.assertIn('implementa', resposta)
-
-    def test_um_salto_alcancia_a_decisao_por_tras_do_artefato(self):
-        resposta = buscar_no_grafo('frontend do chatbot', self.projeto.id, max_saltos=1)
-        self.assertIn('Decisão de layout', resposta)
-
-    def test_salto_zero_mostra_so_a_vizinhanca_imediata(self):
-        resposta = buscar_no_grafo('frontend do chatbot', self.projeto.id, max_saltos=0)
-        self.assertNotIn('Decisão de layout', resposta)
-
-    def test_comunidade_e_fonte_aparecem_no_contexto(self):
-        resposta = buscar_no_grafo('frontend do chatbot', self.projeto.id)
-        self.assertIn('Entregas de interface', resposta)
-        self.assertIn('atas.md', resposta)
-
-    def test_nao_vaza_para_o_grafo_de_outro_projeto(self):
-        resposta = buscar_no_grafo('Renata Prado', self.projeto.id)
-        self.assertNotIn('Renata Prado', resposta)
-        self.assertIn('Nenhuma entidade', resposta)
-        self.assertIn('Renata Prado', buscar_no_grafo('Renata Prado', self.projeto_alheio.id))
-
-    def test_sem_projeto_nao_consulta_nada(self):
-        self.assertTrue(buscar_no_grafo('frontend do chatbot', None).startswith('Nenhuma pergunta'))
-
-    def test_aresta_de_confianca_baixa_nao_colapara_temas(self):
-        # CONF_MINIMA é a mesma régua do desenho e das comunidades.
-        Relacao.objects.filter(projeto_id=self.projeto.id).update(confianca=0.1)
-        resposta = buscar_no_grafo('frontend do chatbot', self.projeto.id)
-        self.assertNotIn('Marya Vitória', resposta)
-
-
-class FerramentaDoGrafoNaViewTests(TestCase):
-    """Prova a ligação view → grafo: sem isto a #13-3 é só uma função órfã."""
-
-    def setUp(self):
-        po = UsuarioPO.objects.create_user(email='view@pro4tech.com', nome='PO View', password='x')
-        self.projeto = Projeto.objects.create(usuario_po=po, titulo='PayCore', descricao='pagamentos')
-        marya = Entidade.objects.create(nome='Marya Vitória', chave='maryavitoria', tipo='pessoa',
-                                        descricao='Desenvolvedora', projeto=self.projeto)
-        frontend = Entidade.objects.create(nome='frontend do chatbot', chave='frontendchatbot',
-                                           tipo='artefato', descricao='Interface', projeto=self.projeto)
-        Relacao.objects.create(origem=marya, destino=frontend, tipo='implementa',
-                               confianca=0.9, projeto=self.projeto)
-
-    def _resposta(self, conteudo):
-        mock = MagicMock()
-        mock.raise_for_status.return_value = None
-        mock.json.return_value = {"message": conteudo}
-        return mock
-
-    def test_agente_aciona_ferramenta_e_recebe_contexto_do_grafo(self):
-        depois_de_ferramenta = self._resposta({"content": "Foi a Marya Vitória."})
-        with patch('ai.views.requests.post', side_effect=[
-            self._resposta({"tool_calls": [{"function": {
-                "name": "consultar_grafo_conhecimento",
-                "arguments": {"pergunta": "quem fez o frontend do chatbot?"},
-            }}]}),
-            depois_de_ferramenta,
-        ]) as post:
-            resposta = self.client.post(
-                '/api/chat/',
-                json.dumps({'message': 'quem fez o frontend do chatbot?', 'projeto_id': self.projeto.id}),
-                content_type='application/json',
-            )
-
-        self.assertEqual(resposta.status_code, 200)
-        mensagens = post.call_args_list[1].kwargs["json"]["messages"]
-        conteudo_da_ferramenta = [m for m in mensagens if m.get("role") == "tool"]
-        self.assertEqual(len(conteudo_da_ferramenta), 1)
-        self.assertIn('Marya Vitória', conteudo_da_ferramenta[0]["content"])
-        self.assertIn('implementa', conteudo_da_ferramenta[0]["content"])
-
-    def test_ferramenta_nao_le_grafo_de_outro_projeto(self):
-        outro_po = UsuarioPO.objects.create_user(email='outro@pro4tech.com', nome='Outro PO', password='x')
-        outro = Projeto.objects.create(usuario_po=outro_po, titulo='RealIT', descricao='crédito')
-        Entidade.objects.create(nome='Renata Prado', chave='renataprado', tipo='pessoa',
-                                descricao='Analista de crédito', projeto=outro)
-
-        with patch('ai.views.requests.post', side_effect=[
-            self._resposta({"tool_calls": [{"function": {
-                "name": "consultar_grafo_conhecimento",
-                "arguments": {"pergunta": "quem é Renata Prado?"},
-            }}]}),
-            self._resposta({"content": "Não consta no projeto."}),
-        ]) as post:
-            self.client.post(
-                '/api/chat/',
-                json.dumps({'message': 'quem é Renata Prado?', 'projeto_id': self.projeto.id}),
-                content_type='application/json',
-            )
-
-        mensagens = post.call_args_list[1].kwargs["json"]["messages"]
-        conteudo = [m for m in mensagens if m.get("role") == "tool"][0]["content"]
-        self.assertNotIn('Renata Prado', conteudo)
-
-
-@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
-class IngestaoDoGrafoTests(TestCase):
-    """Pipeline de ingestão com o LLM encenado: nenhum destes testes depende de GPU."""
-
-    DUPLA = [
-        {'nome': 'Marya Vitória', 'tipo': 'pessoa', 'descricao': 'Desenvolvedora'},
-        {'nome': 'frontend do chatbot', 'tipo': 'artefato', 'descricao': 'Interface do chatbot'},
-    ]
-
-    def setUp(self):
-        po = UsuarioPO.objects.create_user(email='ingest@pro4tech.com', nome='PO Ingest', password='x')
-        self.projeto = Projeto.objects.create(usuario_po=po, titulo='PayCore', descricao='pagamentos')
-        self.documento = Documento.objects.create(projeto=self.projeto, nome='atas.md', tipo='md')
-
-    def _chunk(self, conteudo=None):
-        texto = conteudo or (
-            'A reuniao de hoje registrou que Marya Vitoria implementou o frontend do chatbot '
-            'e que a decisao foi tomada na sprint 3 por todo o time presente na sala.'
-        )
-        return ChunkDoc.objects.create(
-            documento=self.documento, projeto=self.projeto, conteudo=texto, embedding=[0.0] * 768,
-        )
-
-    @staticmethod
-    def _saida(entidades, relacoes):
-        return json.dumps({'entidades': entidades, 'relacoes': relacoes}, ensure_ascii=False)
-
-    def _aresta_simples(self, tipo='implementa', confianca=0.9, descricao='implementou o componente'):
-        return [{'origem': 'Marya Vitória', 'destino': 'frontend do chatbot', 'tipo': tipo,
-                 'confianca': confianca, 'descricao': descricao}]
-
-    # --- caminho feliz -------------------------------------------------------
-
-    def test_ingestao_grava_no_aresta_evidencia_e_marca_o_chunk(self):
-        chunk = self._chunk()
-        with patch('ai.graphrag._chat', return_value=self._saida(self.DUPLA, self._aresta_simples())):
-            metrica = ingestir(projeto_id=self.projeto.id, documento_id=self.documento.id, lote=1)
-
-        self.assertEqual(metrica['entidades'], 2)
-        self.assertEqual(metrica['relacoes'], 1)
-        self.assertEqual(Entidade.objects.filter(projeto=self.projeto).count(), 2)
-        aresta = Relacao.objects.get(projeto=self.projeto)
-        self.assertEqual([c.id for c in aresta.evidencias.all()], [chunk.id])
-        chunk.refresh_from_db()
-        self.assertTrue(chunk.grafo_processado)
-
-    def test_detectar_comunidades_regenera_sem_acumular(self):
-        nos = [Entidade.objects.create(nome=f'Componente {i}', chave=f'componente{i}', tipo='sistema',
-                                        projeto=self.projeto) for i in range(4)]
-        # K4: agrupamento denso o bastante para o Louvain fechar uma única comunidade.
-        for i, origem in enumerate(nos):
-            for destino in nos[i + 1:]:
-                Relacao.objects.create(origem=origem, destino=destino, tipo='depende_de',
-                                       confianca=0.9, projeto=self.projeto)
-        with patch('ai.graphrag._chat', return_value=self._saida([], [])):
-            primeira = detectar_comunidades(projeto_id=self.projeto.id)
-            segunda = detectar_comunidades(projeto_id=self.projeto.id)
-
-        self.assertEqual(primeira['comunidades'], 1)
-        self.assertEqual(segunda['comunidades'], 1)
-        self.assertEqual(Comunidade.objects.filter(projeto=self.projeto).count(), 1)
-
-    # --- idempotência e incremental -----------------------------------------
-
-    def test_reprocessar_o_mesmo_chunk_nao_duplica_no_nem_aresta(self):
+    def test_marcacao_markdown_nao_aparece_no_rotulo_do_no(self):
+        # O modelo copia **negrito** e `codigo` do markdown; o rótulo do nó tem de
+        # chegar limpo no painel, senão vira ruído visual e quebra a deduplicação.
         self._chunk()
-        with patch('ai.graphrag._chat', return_value=self._saida(self.DUPLA, self._aresta_simples())):
-            ingestir(projeto_id=self.projeto.id, lote=1, reprocessar=True)
-            ingestir(projeto_id=self.projeto.id, lote=1, reprocessar=True)
-
-        self.assertEqual(Entidade.objects.filter(projeto=self.projeto).count(), 2)
-        self.assertEqual(Relacao.objects.filter(projeto=self.projeto).count(), 1)
-
-    def test_rounda_incremental_nao_rechama_o_modelo_para_chunk_ja_lido(self):
-        self._chunk()
-        with patch('ai.graphrag._chat', return_value=self._saida(self.DUPLA, self._aresta_simples())) as chat:
-            primeiro = ingestir(projeto_id=self.projeto.id, lote=1)
-            segundo = ingestir(projeto_id=self.projeto.id, lote=1)
-
-        self.assertEqual(primeiro['chunks_processados'], 1)
-        self.assertEqual(segundo['chunks_processados'], 0)
-        self.assertEqual(chat.call_count, 1)
-
-    def test_chunk_curto_demais_nem_chega_ao_modelo(self):
-        self._chunk(conteudo='curto demais')
-        with patch('ai.graphrag._chat') as chat:
-            metrica = ingestir(projeto_id=self.projeto.id, lote=1)
-
-        self.assertEqual(metrica['chunks_processados'], 0)
-        chat.assert_not_called()
-
-    # --- taxonomia e confiança ----------------------------------------------
-
-    def test_tipo_de_aresta_inventado_degrada_para_menciona(self):
-        self._chunk()
-        with patch('ai.graphrag._chat', return_value=self._saida(self.DUPLA, self._aresta_simples(tipo='coleta'))):
-            ingestir(projeto_id=self.projeto.id, lote=1)
-
-        self.assertEqual(Relacao.objects.get(projeto=self.projeto).tipo, 'menciona')
-
-    def test_confianca_fora_da_faixa_nao_quebra_a_ingestao(self):
-        self._chunk()
-        for bruto, esperado in (('2.5', 1.0), ('abc', 0.7)):
-            Relacao.objects.all().delete()
-            Entidade.objects.all().delete()
-            saida = self._saida(self.DUPLA, self._aresta_simples(confianca=bruto))
-            with patch('ai.graphrag._chat', return_value=saida):
-                ingestir(projeto_id=self.projeto.id, lote=1, reprocessar=True)
-            self.assertAlmostEqual(Relacao.objects.get(projeto=self.projeto).confianca, esperado)
-
-    # --- filtros de qualidade de dados ---------------------------------------
-
-    def test_data_caminho_papel_verbo_e_frase_nao_viram_no(self):
-        self._chunk()
-        lixo = ['docs/scrum/', '03/10/2026', 'aprovou', 'Scrum Master', 'sistema',
-                'a autenticação só na sprint 3 e com jwt valido agora']
-        saida = self._saida([{'nome': n, 'tipo': 'conceito', 'descricao': ''} for n in lixo], [])
+        saida = self._saida([{'nome': '**GraphRAG**', 'tipo': 'conceito',
+                              'descricao': 'Camada de grafo sobre o Postgres'}], [])
         with patch('ai.graphrag._chat', return_value=saida):
             ingestir(projeto_id=self.projeto.id, lote=1)
 
-        self.assertEqual(Entidade.objects.filter(projeto=self.projeto).count(), 0)
+        self.assertEqual(Entidade.objects.get(projeto=self.projeto).nome, 'GraphRAG')
 
-    def test_resposta_fora_do_formato_nao_inventa_grafo(self):
-        chunk = self._chunk()
-        with patch('ai.graphrag._chat', return_value='Desculpe, não consegui estruturar isso em JSON.'):
-            metrica = ingestir(projeto_id=self.projeto.id, lote=1)
-
-        self.assertEqual(Entidade.objects.filter(projeto=self.projeto).count(), 0)
-        self.assertEqual(metrica['relacoes'], 0)
-        chunk.refresh_from_db()
-        self.assertTrue(chunk.grafo_processado)  # a rodada foi paga: não re-processa o mesmo lixo
-
-    # --- identidade e enriquecimento monotônico ------------------------------
-
-    def test_handle_e_nome_real_sao_um_no_so_e_o_rotulo_legivel_vence(self):
+    def test_identificador_de_backlog_pode_ser_no(self):
+        # Suporte à regra do prompt: '#13-2' não é barrado por ser número.
         self._chunk()
-        with patch('ai.graphrag._chat', return_value=self._saida(
-                [{'nome': 'kayanmatta', 'tipo': 'pessoa', 'descricao': 'Orquestrou a indexação'}], [])):
+        saida = self._saida([{'nome': 'task #13-2', 'tipo': 'requisito',
+                              'descricao': 'Comunidades e visualizacao'}], [])
+        with patch('ai.graphrag._chat', return_value=saida):
             ingestir(projeto_id=self.projeto.id, lote=1)
-        with patch('ai.graphrag._chat', return_value=self._saida(
-                [{'nome': 'Kayan da Matta', 'tipo': 'pessoa', 'descricao': 'PO do produto'}], [])):
-            ingestir(projeto_id=self.projeto.id, lote=1, reprocessar=True)
 
         no = Entidade.objects.get(projeto=self.projeto)
-        self.assertEqual(no.nome, 'Kayan da Matta')
-        # monotônico: a primeira descrição fundamentada não é sobrescrita
-        self.assertEqual(no.descricao, 'Orquestrou a indexação')
-
-    def test_ponta_de_relacao_nasce_conceito_e_sobe_para_o_tipo_declarado(self):
-        self._chunk()
-        with patch('ai.graphrag._chat', return_value=self._saida([], self._aresta_simples())):
-            ingestir(projeto_id=self.projeto.id, lote=1)
-            marya = Entidade.objects.get(nome='Marya Vitória')
-            self.assertEqual(marya.tipo, 'conceito')
-            self.assertEqual(marya.descricao, 'implementou o componente')
-
-            saida = self._saida([{'nome': 'Marya Vitória', 'tipo': 'pessoa', 'descricao': ''}], [])
-            with patch('ai.graphrag._chat', return_value=saida):
-                ingestir(projeto_id=self.projeto.id, lote=1, reprocessar=True)
-
-        self.assertEqual(Entidade.objects.get(nome='Marya Vitória').tipo, 'pessoa')
-
-    # --- leitura da resposta do modelo ----------------------------------------
+        self.assertEqual(no.nome, 'task #13-2')
+        # o hífen sobrevive de propósito: 'task #13-2' e 'task #13-3' não podem
+        # colapsar na mesma chave
+        self.assertEqual(no.chave, 'task13-2')
 
     def test_extrair_json_tolera_cerca_markdown_e_texto_ao_redor(self):
         alvo = self._saida([{'nome': 'Frontend', 'tipo': 'sistema', 'descricao': ''}], [])
@@ -925,6 +607,110 @@ class IngestaoDoGrafoTests(TestCase):
 
     def test_extrair_json_recusa_objeto_truncado(self):
         self.assertIsNone(_extrair_json('{"entidades": [{"nome": "sem fim"'))
+
+
+class RetrievalPorIntencaoESemanticaTests(TestCase):
+    """A pergunta pode falar de gente sem citar nome — o grafo tem de alcançar."""
+
+    def setUp(self):
+        po = UsuarioPO.objects.create_user(email='intencao@pro4tech.com', nome='PO I', password='x')
+        self.projeto = Projeto.objects.create(usuario_po=po, titulo='PayCore', descricao='x')
+        kayan = self._no('Kayan da Matta', 'pessoa')
+        marya = self._no('Marya Vitória', 'pessoa')
+        frontend = self._no('frontend do chatbot', 'artefato')
+        for pessoa in (kayan, marya):
+            Relacao.objects.create(origem=pessoa, destino=frontend, tipo='implementa',
+                                   confianca=0.9, projeto=self.projeto)
+
+    def _no(self, nome, tipo, descricao='Algo documentado'):
+        return Entidade.objects.create(nome=nome, tipo=tipo, descricao=descricao,
+                                       chave=_chave_identidade(nome), projeto=self.projeto)
+
+    def test_pergunta_sobre_equipe_sem_citar_nome_devolve_as_pessoas(self):
+        with patch('ai.graphrag.gerar_embeddings', side_effect=FalhaDeEmbeddingError('fora do ar')):
+            resposta = buscar_no_grafo('quem sao as pessoas do time?', self.projeto.id)
+        self.assertIn('Kayan da Matta', resposta)
+        self.assertIn('Marya Vitória', resposta)
+
+    def test_sem_no_vetorizado_nao_se_chama_o_servico_de_embedding(self):
+        with patch('ai.graphrag.gerar_embeddings') as gerar:
+            buscar_no_grafo('mostre a galeria de talentos agora', self.projeto.id)
+        gerar.assert_not_called()
+
+    def test_busca_semantica_alcancia_pergunta_sem_palavra_de_intencao(self):
+        # 'roster de habilidades' não casa com nenhum nome nem com a lista de
+        # intenção: só a comparação vetorial alcança o nó.
+        alvo = self._no('Galeria de talentos', 'conceito')
+        alvo.embedding = [1.0] * 768
+        alvo.save(update_fields=['embedding'])
+        with patch('ai.graphrag.gerar_embeddings', return_value=[[0.999] * 768]):
+            resposta = buscar_no_grafo('onde vejo o roster de habilidades?', self.projeto.id)
+        self.assertIn('Galeria de talentos', resposta)
+
+    def test_pergunta_que_cita_entidade_nao_perde_a_aresta_que_responde(self):
+        # "quem" acende a ponte de intenção. Ela não pode, com suas arestas de
+        # confiança 1.0, empurrar para fora do teto a aresta que responde a pergunta.
+        kayan = Entidade.objects.get(projeto=self.projeto, nome='Kayan da Matta')
+        graf = self._no('GraphRAG', 'sistema')
+        Relacao.objects.create(origem=kayan, destino=graf, tipo='implementa',
+                               confianca=0.9, projeto=self.projeto)
+        for i in range(10):
+            pessoa = self._no(f'Analista {i}', 'pessoa')
+            modulo = self._no(f'Módulo {i}', 'artefato')
+            Relacao.objects.create(origem=pessoa, destino=modulo, tipo='implementa',
+                                   confianca=1.0, projeto=self.projeto)
+
+        resposta = buscar_no_grafo('quem implementou o GraphRAG?', self.projeto.id)
+        self.assertIn('Kayan da Matta --implementa--> GraphRAG', resposta)
+
+    def test_contexto_respeita_o_teto_de_tamanho(self):
+        centro = self._no('Núcleo', 'sistema')
+        for i in range(40):
+            ponta = self._no(f'Componente {i} extra longo para estourar', 'sistema', descricao='x' * 60)
+            Relacao.objects.create(origem=centro, destino=ponta, tipo='depende_de',
+                                   confianca=0.9, projeto=self.projeto)
+        with patch('ai.graphrag.gerar_embeddings', side_effect=FalhaDeEmbeddingError('fora do ar')):
+            resposta = buscar_no_grafo('Núcleo', self.projeto.id)
+        # teto de 2600 + a frase final fixa; o ponto é não estourar a janela do modelo
+        self.assertLessEqual(len(resposta), 2800)
+        self.assertIn('Use apenas o acima', resposta)
+
+
+class EmbeddingsDeNosTests(TestCase):
+    """Backfill de vetor dos nós: idempotente e sem chute quando o serviço falha."""
+
+    def setUp(self):
+        po = UsuarioPO.objects.create_user(email='vetor@pro4tech.com', nome='PO V', password='x')
+        self.projeto = Projeto.objects.create(usuario_po=po, titulo='PayCore', descricao='x')
+        self.com_vetor = self._no('Com vetor', 'conceito')
+        self.com_vetor.embedding = [0.5] * 768
+        self.com_vetor.save(update_fields=['embedding'])
+        self.sem_vetor = self._no('Sem vetor', 'conceito')
+
+    def _no(self, nome, tipo):
+        return Entidade.objects.create(nome=nome, tipo=tipo, descricao='d',
+                                       chave=_chave_identidade(nome), projeto=self.projeto)
+
+    def test_preenche_somente_quem_esta_sem_vetor(self):
+        with patch('ai.graphrag.gerar_embeddings', return_value=[[0.25] * 768]) as gerar:
+            resultado = embeddar_entidades(projeto_id=self.projeto.id)
+        self.assertEqual(resultado['embeddings'], 1)
+        self.assertEqual(gerar.call_args.args[0], ['Sem vetor (conceito): d'])
+        self.sem_vetor.refresh_from_db()
+        self.assertIsNotNone(self.sem_vetor.embedding)
+
+    def test_contagem_divergente_nao_chuta_vetor(self):
+        with patch('ai.graphrag.gerar_embeddings', return_value=[[0.25] * 768, [0.25] * 768]):
+            resultado = embeddar_entidades(projeto_id=self.projeto.id)
+        self.assertEqual(resultado['embeddings'], 0)
+        self.sem_vetor.refresh_from_db()
+        self.assertIsNone(self.sem_vetor.embedding)
+
+    def test_servico_fora_do_ar_para_sem_gravar_lixo(self):
+        with patch('ai.graphrag.gerar_embeddings', side_effect=FalhaDeEmbeddingError('fora do ar')):
+            resultado = embeddar_entidades(projeto_id=self.projeto.id)
+        self.assertEqual(resultado['embeddings'], 0)
+
 
 class ExportarPDFTests(APITestCase):
     def setUp(self):

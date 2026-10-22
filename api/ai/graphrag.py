@@ -18,7 +18,9 @@ import requests
 from decouple import config
 from django.db import transaction
 from django.db.models.functions import Length
+from pgvector.django import CosineDistance
 
+from ai.indexing import FalhaDeEmbeddingError, gerar_embeddings
 from ai.models import ChunkDoc, Entidade, Comunidade, Relacao
 
 OLLAMA_URL = config("OLLAMA_URL", default="http://localhost:11434")
@@ -85,11 +87,13 @@ Regras rigidas:
 - Se o mesmo conceito aparece mais de uma vez, cite-o uma unica vez no singular.
 - Nao crie entidade para palavra generica isolada (ex.: 'sistema', 'dados', 'projeto', 'time').
 - Somente relacoes explicitas no texto. Nao invente. Os nomes das relacoes devem bater com as entidades listadas.
+- Direcao importa: em 'origem --tipo--> destino' a ORIGEM e quem executa a acao. 'Marya implementou o frontend' -> origem 'Marya Vitoria', destino 'frontend'. Nunca inverta uma relacao de pessoa para coisa.
 - 'confianca' e um numero de 0 a 1 indicando quao clara e a relacao no texto.
 - Max 12 entidades, 15 relacoes.
 - Nunca crie entidade para caminho de arquivo ou pasta (ex.: docs/, docs/scrum/) nem arquivo de configuracao (ex.: docker-compose.yml).
 - Nao crie relacoes cuja origem ou destino seja o nome do produto ou do projeto; eles sao contexto, nao no do grafo.
 - Resolva identidades: quando o texto der o usuario/handle e o nome real da mesma entidade (ex.: '@jkatayama' e 'Jessica Katayama'), cite APENAS o nome real, no singular, uma unica vez.
+- Todo identificador de backlog citado no texto (ex.: '#13-2', 'task #4-3', 'PR #37') DEVE virar entidade do tipo requisito, com o numero no nome ('task #13-2'). Esses identificadores sao como a equipe conversa sobre o trabalho; perde-los quebra a pergunta 'o que a task X entregou?'.
 
 EXEMPLO DE SAIDA ESPERADA:
 Texto: "Na Sprint 1, Joao Paulo desenvolveu o modulo de login."
@@ -277,7 +281,11 @@ def extrair_grafo_do_texto(texto, teto=800, num_predict=1500):
 
 def _obter_ou_criar_entidade(nome, tipo, descricao, projeto):
     """Cria/reaproveita entidade pela chave canônica dentro do projeto (deduplicação)."""
-    bruto = (nome or "").strip()
+    # Remove marcação markdown que o modelo copia do texto: sem isso, nós nascem
+    # rotulados como 'branch `feature/13-graphrag`' e o rótulo vira lixo no painel.
+    # Só crase e asterisco — underscore é parte do nome de código (grafo_processado).
+    bruto = re.sub(r"[*`]+", " ", (nome or "")).strip()
+    bruto = re.sub(r"\s{2,}", " ", bruto)
     if not bruto or _eh_lixo(bruto):
         return None
     chave = _chave_identidade(bruto)
@@ -577,6 +585,63 @@ def _buscar_sementes(termos, entidades, grau):
     return [ent_id for _, _, ent_id in marcados]
 
 
+# Vocabulário de pergunta que pede GENTE na resposta. Não é lista de nomes: são as
+# palavras que qualquer cliente usa ("quem é do time?", "quais os integrantes?").
+# Sem essa ponte, nenhuma dessas palavras casa com o nome de uma pessoa e o
+# retrieval devolve as arestas do hub do projeto no lugar da equipe.
+_PALAVRAS_DE_PESSOA = ("quem", "integrante", "membro", "equipe", "time", "pessoa",
+                       "responsavel", "autor", "autoria", "desenvolvedor",
+                       "participante", "profissional", "funcional")
+_MAXIMO_PESSOAS_SEM_NOME = 12
+# Quando a pergunta já cita uma entidade, a ponte de intenção entra só como
+# reforço pequeno — injetar a equipe inteira empurra a resposta certa para fora
+# do teto de relações.
+_MAXIMO_PESSOAS_COM_NOME = 3
+
+# Tetos do bloco injetado na conversa. A janela do Ollama é de 4096 tokens e esse
+# espaço é dividido com a persona, o histórico e o resultado da busca vetorial:
+# contexto de grafo gordo demais faz o modelo responder string vazia.
+_LIMITE_CAMINHOS = 12
+_LIMITE_NOS = 14
+_LIMITE_TEMAS = 2
+_LIMITE_CARACTERES = 2600
+# Distância de cosseno máxima aceita como "nó relevante" na busca semântica.
+_DISTANCIA_MAXIMA_NO = 0.55
+
+
+def _sementes_por_intencao(termos, entidades, grau, limite=_MAXIMO_PESSOAS_SEM_NOME):
+    """Quando a pergunta fala de gente sem citar nome: devolve as pessoas mais ligadas."""
+    if not any(termo in _PALAVRAS_DE_PESSOA for termo in termos):
+        return []
+    pessoas = [ent for ent in entidades if ent.tipo == "pessoa"]
+    pessoas.sort(key=lambda ent: (-grau[ent.id], ent.nome.lower()))
+    return [ent.id for ent in pessoas[:limite]]
+
+
+def _sementes_semanticas(pergunta, projeto_id, ja_escolhidas, limite=3):
+    """Vizinhos semânticos da pergunta entre os nós do projeto.
+
+    É o que pega sinônimo que nenhuma regra léxica alcança ('integrantes' ~
+    'pessoas do time'). Depende de `graphrag_embeddings` ter rodado; sem vetor
+    no banco, ou com o Ollama de embeddings fora do ar, devolve vazio e o
+    retrieval segue funcionando só com o caminho léxico.
+    """
+    if not Entidade.objects.filter(projeto_id=projeto_id, embedding__isnull=False).exists():
+        return []  # sem nós vetorizados não há o que comparar: nem chama o serviço
+    try:
+        vetores = gerar_embeddings([pergunta[:900]])
+    except FalhaDeEmbeddingError:
+        return []
+    if not vetores:
+        return []
+    proximos = (Entidade.objects
+                .filter(projeto_id=projeto_id, embedding__isnull=False)
+                .exclude(id__in=ja_escolhidas)
+                .annotate(distancia=CosineDistance("embedding", vetores[0]))
+                .order_by("distancia")[:limite])
+    return [ent.id for ent in proximos if ent.distancia <= _DISTANCIA_MAXIMA_NO]
+
+
 def buscar_no_grafo(pergunta, projeto_id, max_entidades=5, max_saltos=1):
     """Monta o contexto do grafo (caminhos + comunidades + fontes) para o chat.
 
@@ -608,7 +673,22 @@ def buscar_no_grafo(pergunta, projeto_id, max_entidades=5, max_saltos=1):
         vizinhanca[aresta.origem_id].append(aresta)
         vizinhanca[aresta.destino_id].append(aresta)
 
-    sementes = _buscar_sementes(termos, entidades, grau)[:max_entidades]
+    lexical = _buscar_sementes(termos, entidades, grau)
+    sementes = lexical[:max_entidades]
+    # Ponte de intenção é FALLBACK: sem nenhuma semente ela traz a equipe inteira;
+    # com semente, reforça com poucas pessoas. Injetar 12 pessoas numa pergunta que
+    # já cita "GraphRAG" enchia as vagas com arestas de confiança 1.0 e expulsava
+    # a resposta certa.
+    limite_intencao = _MAXIMO_PESSOAS_SEM_NOME if not sementes else _MAXIMO_PESSOAS_COM_NOME
+    for ent_id in _sementes_por_intencao(termos, entidades, grau, limite=limite_intencao):
+        if ent_id not in sementes:
+            sementes.append(ent_id)
+    # Ponte semântica: pega sinônimo que a regra léxica não alcança. Sem nós
+    # vetorizados no banco, devolve vazio e o resto continua igual.
+    semanticas = _sementes_semanticas(pergunta, projeto_id, set(sementes))
+    sementes += semanticas
+    # Nós que a pergunta de fato citou: as arestas deles vêm antes das demais.
+    relevantes = set(lexical[:max_entidades]) | set(semanticas)
     if not sementes:
         return ("Nenhuma entidade do grafo deste projeto corresponde à pergunta. "
                 "Tente outro termo ou consulte os documentos indexados.")
@@ -629,19 +709,29 @@ def buscar_no_grafo(pergunta, projeto_id, max_entidades=5, max_saltos=1):
                     proxima.append(outro)
         fronteira = proxima
 
+    # Ordem das relações: primeiro as que tocam o nó citado pela pergunta, depois
+    # a confiança. Sozinha, a confiança não basta — uma aresta 1,0 de outra pessoa
+    # venceria a 0,9 que responde ao que foi perguntado.
+    def prioridade(aresta):
+        direta = aresta.origem_id in relevantes or aresta.destino_id in relevantes
+        return (0 if direta else 1, -aresta.confianca, aresta.id)
+
     caminhos = [
         f"- {a.origem.nome} --{a.tipo}--> {a.destino.nome} (confiança {a.confianca:.1f})"
-        for a in sorted(bordas.values(), key=lambda a: (-a.confianca, a.id))
-    ]
+        for a in sorted(bordas.values(), key=prioridade)
+    ][:_LIMITE_CAMINHOS]
+    # Nós na ordem da resposta: semente primeiro, depois por conexão.
+    ordem = {ent_id: i for i, ent_id in enumerate(sementes)}
     nos = [
         f"- {por_id[ent_id].nome} ({por_id[ent_id].tipo}): {por_id[ent_id].descricao}"
-        for ent_id in sorted(selecionados, key=lambda i: por_id[i].nome.lower())
+        for ent_id in sorted(selecionados,
+                             key=lambda i: (ordem.get(i, len(sementes)), -grau[i], por_id[i].nome.lower()))
         if por_id[ent_id].descricao
-    ]
+    ][:_LIMITE_NOS]
 
     comunidades = (Comunidade.objects.filter(projeto_id=projeto_id, membros__id__in=selecionados)
                    .exclude(resumo="").distinct())
-    temas = [f"- {c.titulo}: {c.resumo}" for c in comunidades]
+    temas = [f"- {c.titulo}: {c.resumo}" for c in comunidades][:_LIMITE_TEMAS]
 
     # Fontes: documentos dos chunks que sustentam as arestas exibidas. Sem isto,
     # a citação de fontes da #13 oficial não tem de onde sair.
@@ -651,14 +741,129 @@ def buscar_no_grafo(pergunta, projeto_id, max_entidades=5, max_saltos=1):
         for chunk in aresta.evidencias.select_related("documento").all()
     })
 
-    partes = ["CONHECIMENTO RELACIONADO (grafo do projeto)"]
-    if caminhos:
-        partes.append("Relações:\n" + "\n".join(caminhos))
-    if nos:
-        partes.append("Entidades:\n" + "\n".join(nos))
-    if temas:
-        partes.append("Temas do grafo:\n" + "\n".join(temas))
-    if documentos:
-        partes.append("Fontes: " + ", ".join(documentos))
-    partes.append("Use apenas o acima; se não cobrir a pergunta, diga que não sabe.")
-    return "\n\n".join(partes)
+    def renderizar(caminhos_, nos_, temas_, documentos_):
+        blocos = ["CONHECIMENTO RELACIONADO (grafo do projeto)"]
+        if caminhos_:
+            blocos.append("Relações:\n" + "\n".join(caminhos_))
+        if nos_:
+            blocos.append("Entidades:\n" + "\n".join(nos_))
+        if temas_:
+            blocos.append("Temas do grafo:\n" + "\n".join(temas_))
+        if documentos_:
+            blocos.append("Fontes: " + ", ".join(documentos_))
+        return "\n\n".join(blocos)
+
+    texto = renderizar(caminhos, nos, temas, documentos)
+    # Trava final: se ainda estourou o teto, sacrifica na ordem do que menos custa
+    # — temas, depois relações, depois nós. Contexto acima da janela do modelo faz
+    # ele devolver resposta vazia.
+    while len(texto) > _LIMITE_CARACTERES and (temas or caminhos or nos):
+        if temas:
+            temas = temas[:-1]
+        elif caminhos:
+            caminhos = caminhos[:-1]
+        else:
+            nos = nos[:-1]
+        texto = renderizar(caminhos, nos, temas, documentos)
+    return texto + "\n\nUse apenas o acima; se não cobrir a pergunta, diga que não sabe."
+
+
+def embeddar_entidades(projeto_id=None, lote=64):
+    """Preenche o vetor dos nós para liberar a busca semântica do retrieval.
+
+    Idempotente: só pega entidade ainda sem embedding, então roda depois da
+    ingestão (nó novo nasce sem vetor). Usa o modelo de embeddings pequeno
+    (nomic-embed-text), não o 7B — o custo é uma chamada por lote.
+    """
+    alvo = Entidade.objects.filter(embedding__isnull=True)
+    if projeto_id:
+        alvo = alvo.filter(projeto_id=projeto_id)
+    pendentes = list(alvo.order_by("id"))
+    t0 = time.perf_counter()
+    total = 0
+    for inicio in range(0, len(pendentes), lote):
+        grupo = pendentes[inicio:inicio + lote]
+        textos = [f"{ent.nome} ({ent.tipo}): {ent.descricao}"[:900] for ent in grupo]
+        try:
+            vetores = gerar_embeddings(textos)
+        except FalhaDeEmbeddingError:
+            break
+        if len(vetores) != len(grupo):
+            break  # contagem divergiu: melhor deixar sem vetor do que chutar
+        for ent, vetor in zip(grupo, vetores):
+            ent.embedding = vetor
+        Entidade.objects.bulk_update(grupo, ["embedding"])
+        total += len(grupo)
+    return {"embeddings": total, "sem_vetor": len(pendentes) - total,
+            "segundos": round(time.perf_counter() - t0, 1)}
+
+
+def _chunks_elegiveis_para_grafo(documento_id):
+    """Chunks do documento com conteúdo suficiente para render grafo (>=150 chars)."""
+    return (
+        ChunkDoc.objects
+        .filter(documento_id=documento_id)
+        .annotate(_n=Length("conteudo"))
+        .filter(_n__gte=150)
+    )
+
+
+def agendar_ingestao_grafo(documento):
+    """Cria o registro de progresso e dispara a ingestão do grafo em background.
+
+    Chamado logo após a indexação (embeddings) no upload: o grafo passa a ser
+    montado automaticamente, sem o usuário rodar comando, e o frontend acompanha
+    o progresso pelo endpoint de status. Retorna o ProgressoGrafo criado.
+    """
+    import threading
+    from django.utils import timezone
+    from ai.models import ProgressoGrafo
+
+    total = _chunks_elegiveis_para_grafo(documento.id).filter(grafo_processado=False).count()
+    prog = ProgressoGrafo.objects.create(
+        documento=documento,
+        projeto=documento.projeto,
+        total_chunks=total,
+        status='concluido' if total == 0 else 'processando',
+    )
+    if total == 0:
+        prog.finalizado_em = timezone.now()
+        prog.save(update_fields=['finalizado_em'])
+        return prog
+
+    threading.Thread(target=_ingestao_grafo_worker, args=(prog.id,), daemon=True).start()
+    return prog
+
+
+def _ingestao_grafo_worker(progresso_id):
+    """Roda a ingestão em lotes, atualizando o progresso a cada lote, em thread."""
+    from django.db import connections
+    from django.utils import timezone
+    from ai.models import ProgressoGrafo
+
+    LOTE = 2  # chunks por chamada ao LLM; também define a granularidade da barra de %
+    prog = None
+    try:
+        prog = ProgressoGrafo.objects.get(pk=progresso_id)
+        documento_id = prog.documento_id
+        while True:
+            resultado = ingestir(documento_id=documento_id, lote=LOTE, limite=LOTE)
+            feitos = resultado.get('chunks_processados', 0)
+            if not feitos:
+                break
+            prog.chunks_processados = min(prog.total_chunks, prog.chunks_processados + feitos)
+            prog.save(update_fields=['chunks_processados'])
+        prog.status = 'concluido'
+        prog.finalizado_em = timezone.now()
+        prog.save(update_fields=['status', 'finalizado_em'])
+    except Exception as exc:  # nunca deixa a thread morrer silenciosa
+        if prog is not None:
+            try:
+                prog.status = 'erro'
+                prog.erro = str(exc)[:500]
+                prog.finalizado_em = timezone.now()
+                prog.save(update_fields=['status', 'erro', 'finalizado_em'])
+            except Exception:
+                pass
+    finally:
+        connections.close_old_connections()

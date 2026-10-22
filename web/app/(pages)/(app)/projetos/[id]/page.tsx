@@ -8,6 +8,7 @@ import UploadDocumento from "@/app/components/app/projetos/UploadDocumento"
 import DropdownSection from "@/app/components/app/projetos/DropdownSection"
 import ProjetoInfo from "@/app/components/app/projetos/ProjetoInfo"
 import TabelaEpicos from "@/app/components/app/projetos/TabelaEpicos"
+import GrafoViewer from "@/app/components/app/graf/GrafoViewer"
 import Searchbar from "@/app/components/app/Searchbar"
 import { useProjetoAtual } from "@/app/contexts/ProjetoContext"
 import useDebounce from "@/app/hooks/useDebounce"
@@ -151,6 +152,11 @@ export default function PaginaProjeto() {
             />
           ))}
         </section>
+      </DropdownSection>
+
+      {/* Grafo de conhecimento (GraphRAG) deste projeto */}
+      <DropdownSection label="Grafo de Conhecimento">
+        <GrafoViewer projetoId={projeto.id} />
       </DropdownSection>
 
       <UploadDocumento
