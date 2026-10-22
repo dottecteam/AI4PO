@@ -71,10 +71,11 @@ async function apiFetchBlob(
 export const api = {
   get: <T>(path: string) => apiFetch<T>(path),
 
-  post: <T>(path: string, body: unknown) =>
+  post: <T>(path: string, body: unknown, options?: Pick<RequestInit, "signal">) =>
     apiFetch<T>(path, {
       method: "POST",
       body: JSON.stringify(body),
+      signal: options?.signal,
     }),
 
   postForm: <T>(path: string, formData: FormData) =>

@@ -12,6 +12,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from ai.indexing import FalhaDeEmbeddingError
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from ai import similarity
 from ai.retrieval import responder_com_base_vetorial, responder_com_documento
 from ai.graphrag import buscar_no_grafo
 from users.authentication import CookieJWTAuthentication
@@ -43,6 +47,48 @@ MSG_VAZIA = "Não consegui gerar uma resposta para essa pergunta. Tente reformul
 
 # Reaproveita a conexão TCP com o Ollama entre as chamadas (pedido -> ferramenta -> resposta).
 _http = requests.Session()
+
+
+class SimilarityCheckView(APIView):
+    def post(self, request):
+        texto = request.data.get("texto") if isinstance(request.data, dict) else None
+        if not isinstance(texto, str):
+            return Response(
+                {"detail": "O campo texto deve ser uma string."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not texto.strip():
+            return Response({"resultados": []})
+
+        try:
+            resultados = similarity.verificar_similaridade(texto)
+        except FalhaDeEmbeddingError:
+            return Response(
+                {"detail": "Verificação de similaridade indisponível."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response(
+            {
+                "resultados": [
+                    {
+                        "chunkId": resultado.chunk_id,
+                        "conteudo": resultado.conteudo,
+                        "similaridade": resultado.similaridade,
+                        "projeto": {
+                            "id": resultado.projeto_id,
+                            "titulo": resultado.projeto_titulo,
+                        },
+                        "documento": {
+                            "id": resultado.documento_id,
+                            "nome": resultado.documento_nome,
+                        },
+                    }
+                    for resultado in resultados
+                ]
+            }
+        )
+
 
 # ==========================================
 # DEFINIÇÃO DAS FERRAMENTAS (SKILLS)
