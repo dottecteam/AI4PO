@@ -2,6 +2,7 @@ import json
 import logging
 import threading
 from datetime import datetime
+import re
 
 import requests
 from decouple import config
@@ -42,6 +43,8 @@ from .reformatar import (
     reformatacao_pendente,
     salvar_reformatacao,
 )
+
+from .reformatar import TIPOS_VALIDOS
 
 logger = logging.getLogger(__name__)
 
@@ -273,10 +276,39 @@ class SimilarityCheckView(APIView):
             }
         )
     
+_RX_COMANDO_REFORMATAR = re.compile(r"^/reformatar(?:\s+|$)", re.IGNORECASE)
+ 
+ 
+def _interpretar_comando_reformatar(texto):
+    """'/reformatar [pbi|feature|epico] <rascunho>' -> (tipo, rascunho)."""
+    corpo = _RX_COMANDO_REFORMATAR.sub("", texto, count=1).strip()
+    tipo = "pbi"
+    partes = corpo.split(None, 1)
+    if partes and partes[0].lower().replace("é", "e") in TIPOS_VALIDOS:
+        tipo = partes[0].lower().replace("é", "e")
+        corpo = partes[1].strip() if len(partes) > 1 else ""
+    return tipo, corpo
+ 
+ 
+def _aplicar_titulo_gerado(conversa, pergunta, resposta):
+    """Pede um título curto ao Ollama e grava na conversa. Devolve True se gravou.
+ 
+    Se a geração falhar, fica o título provisório (primeiros 60 caracteres).
+    """
+    titulo = gerar_titulo(pergunta, resposta)
+    if not titulo:
+        return False
+    conversa.titulo = titulo[:120]  # titulo tem max_length=120
+    # "titulo" precisa estar em update_fields; auto_now só atualiza
+    # "atualizado_em" se o campo também estiver na lista
+    conversa.save(update_fields=["titulo", "atualizado_em"])
+    return True
+ 
+ 
 class ChatView(APIView):
     authentication_classes = [CookieJWTAuthentication]
     permission_classes = [IsAuthenticated]  # necessário p/ filtrar conversas por usuario_po=request.user
-
+ 
     def post(self, request):
         try:
             # request.data já trata JSON e multipart de forma unificada
@@ -285,7 +317,7 @@ class ChatView(APIView):
             conversa_id = request.data.get("conversa_id")
             nova_conversa = not conversa_id  # só gera título na primeira troca
             arquivo = request.FILES.get("arquivo")
-
+ 
             documento_texto = ""
             anexo_nome = ""
             if arquivo:
@@ -296,14 +328,14 @@ class ChatView(APIView):
                     return JsonResponse({"error": str(erro)}, status=400)
             else:
                 documento_texto = request.data.get("documento_texto", "")
-
+ 
             if not message and not documento_texto:
                 return JsonResponse({"error": "A mensagem ou o documento são obrigatórios."}, status=400)
-
+ 
             logger.info("[PO] %s", message)
             if documento_texto:
                 logger.info("[ANEXO] %s (%d caracteres)", anexo_nome or "texto colado", len(documento_texto))
-
+ 
             # Conversa existente é carregada agora; a nova só é criada ao persistir,
             # assim uma falha do Ollama não deixa conversa vazia na sidebar.
             # ATENÇÃO: em conversa nova, `conversa` continua None até a persistência.
@@ -312,29 +344,45 @@ class ChatView(APIView):
                 conversa = get_object_or_404(Conversa, pk=conversa_id, usuario_po=request.user)
                 # nos turnos seguintes o front pode não reenviar o projeto
                 projeto_id = projeto_id or conversa.projeto_id
-
+ 
             # ==========================================
             # ROTEAMENTO: reformatar / ajustar / conversar
             # ==========================================
-            # Comandos explícitos (ex.: /validar) não passam pelo roteador LLM:
-            # ele é imprevisível com o modelo pequeno e pode desviar a mensagem
-            # para reformatação, pulando a validação determinística abaixo.
-            if message.strip() and not documento_texto and not message.strip().startswith("/"):
+            # "/reformatar" é comando explícito: não passa pelo roteador LLM (o modelo
+            # pequeno erra a classificação). Os demais comandos (ex.: /validar) também
+            # não passam pelo roteador: ele poderia desviar a mensagem para reformatação,
+            # pulando a validação determinística abaixo.
+            texto = message.strip()
+            eh_comando_reformatar = bool(_RX_COMANDO_REFORMATAR.match(texto))
+ 
+            if texto and not documento_texto and (eh_comando_reformatar or not texto.startswith("/")):
                 anterior = reformatacao_pendente(conversa) if conversa else None
-                intencao, tipo = classificar_intencao(
-                    message, ultima_foi_reformatacao=anterior is not None
-                )
-                # "ajustar" só faz sentido logo depois de uma reformatação
-                if intencao == "ajustar" and anterior is None:
-                    intencao = "conversar"
-
+ 
+                if eh_comando_reformatar:
+                    tipo, rascunho = _interpretar_comando_reformatar(texto)
+                    if not rascunho:
+                        return JsonResponse(
+                            {"error": "Use: /reformatar [pbi|feature|epico] <rascunho do requisito>."},
+                            status=400,
+                        )
+                    message = rascunho  # é o que vai para o histórico, sem o "/reformatar"
+                    intencao = "reformatar"
+                    anterior = None  # comando explícito sempre gera uma versão nova
+                else:
+                    intencao, tipo = classificar_intencao(
+                        message, ultima_foi_reformatacao=anterior is not None
+                    )
+                    # "ajustar" só faz sentido logo depois de uma reformatação
+                    if intencao == "ajustar" and anterior is None:
+                        intencao = "conversar"
+ 
                 print(f" [ROTEADOR]: intenção='{intencao}', tipo='{tipo}'")
-
+ 
                 if intencao in ("reformatar", "ajustar"):
                     resultado = gerar_reformatacao(
                         message, tipo, anterior if intencao == "ajustar" else None
                     )
-
+ 
                     # A conversa nova só é criada depois que o Ollama respondeu
                     with transaction.atomic():
                         if conversa is None:
@@ -344,10 +392,14 @@ class ChatView(APIView):
                                 titulo=(message[:60] or "Nova conversa"),
                             )
                         salvar_reformatacao(conversa, message, resultado)
-
+ 
+                    # Conversa nova: troca o título provisório por um título gerado
+                    if nova_conversa:
+                        _aplicar_titulo_gerado(conversa, message, resultado["reformatado"])
+ 
                     print(f"\n [AIPO REFORMATAÇÃO ({resultado['tipo']})]:\n{resultado['reformatado']}")
                     print(f"{'='*60}\n")
-
+ 
                     return JsonResponse({
                         "message": resultado["reformatado"],
                         "conversa_id": conversa.id,
@@ -356,7 +408,7 @@ class ChatView(APIView):
                             "tipo": resultado["tipo"],
                         },
                     })
-
+ 
             # Injeção de Contexto Dinâmico
             data_hora_formatada = datetime.now().strftime("%A, %d/%m/%Y às %H:%M")
             conteudo_system = (
@@ -373,7 +425,7 @@ class ChatView(APIView):
                     f"{conversa.resumo}"
                 )
             system_msg = {"role": "system", "content": conteudo_system}
-
+ 
             conteudo_usuario = message
             if documento_texto:
                 conteudo_usuario += (
@@ -381,7 +433,7 @@ class ChatView(APIView):
                     "Você DEVE acionar a ferramenta 'analisar_documento_anexado' para ler o conteúdo dele "
                     "antes de responder.]"
                 )
-
+ 
             # Validação de especificação (task #8-3): determinística, não passa pelo Ollama.
             texto_spec = detectar_especificacao(message, documento_texto)
             if texto_spec is not None:
@@ -391,7 +443,7 @@ class ChatView(APIView):
                 else:
                     resposta_md = para_markdown(validacao)
                     resposta_curta = resumo_curto(validacao)
-
+ 
                 with transaction.atomic():
                     if conversa is None:
                         # conversa nova: criada já com o título da validação
@@ -402,7 +454,7 @@ class ChatView(APIView):
                         )
                     elif not conversa.mensagens.exists():
                         conversa.titulo = "Validação de especificação"
-
+ 
                     MensagemChat.objects.bulk_create([
                         MensagemChat(
                             conversa=conversa,
@@ -413,17 +465,17 @@ class ChatView(APIView):
                         MensagemChat(conversa=conversa, papel="assistant", conteudo=resposta_md),
                     ])
                     conversa.save()
-
+ 
                 return JsonResponse({
                     "message": resposta_curta,
                     "conversa_id": conversa.id,
                     "validacao": validacao,
                 })
-
+ 
             # Memória multi-turno: histórico vem do banco (conversa nova não tem nenhum)
             historico = carregar_historico(conversa) if conversa else []
             fontes = []  # origem (projeto/documento) dos trechos que a busca trouxe
-
+ 
             # Recuperação DETERMINÍSTICA (RAG de documentos + GraphRAG): quando há
             # pergunta textual, a busca SEMPRE roda aqui e o resultado é injetado no
             # prompt. A resposta fica ancorada nos dados do projeto em vez de depender
@@ -464,9 +516,9 @@ class ChatView(APIView):
                         "Responda usando SOMENTE esse contexto. Se algo não constar nele, "
                         "diga que não consta no contexto — NÃO invente."
                     )
-
+ 
             messages = [system_msg, *historico, {"role": "user", "content": conteudo_usuario}]
-
+ 
             # Ferramentas só entram no caso de documento ANEXADO (analisar_documento_anexado).
             # Em pergunta comum o contexto já foi injetado acima, entao nao se passa tools
             # (evita a busca rodar duas vezes e estourar a latencia).
@@ -474,13 +526,13 @@ class ChatView(APIView):
             tool_calls = response_message.get("tool_calls")
             if tool_calls:
                 messages.append(response_message)
-
+ 
                 for tool_call in tool_calls:
                     function_name = tool_call["function"]["name"]
                     args = _normalizar_args(tool_call["function"].get("arguments"))
-
+ 
                     logger.info("[AGENTE] ferramenta '%s' args=%s", function_name, args)
-
+ 
                     resultado = executar_ferramenta(
                         nome_ferramenta=function_name,
                         args=args,
@@ -497,10 +549,10 @@ class ChatView(APIView):
                         "tool_name": function_name,
                         "name": function_name,
                     })
-
+ 
                 # Segunda chamada, sem tools: o modelo só redige a resposta final
                 resposta_final = _chamar_ollama(messages).get("content") or ""
-
+ 
                 # Modelos pequenos às vezes devolvem vazio logo após o resultado da ferramenta.
                 # Uma segunda tentativa com instrução explícita costuma resolver.
                 if not resposta_final.strip():
@@ -513,7 +565,7 @@ class ChatView(APIView):
                     resposta_final = _chamar_ollama(messages).get("content") or ""
             else:
                 resposta_final = response_message.get("content") or ""
-
+ 
             # Filtro de segurança (vale para os dois caminhos) + resposta vazia.
             # O fallback é devolvido ao usuário, mas não vai pro histórico.
             salvar_no_historico = True
@@ -525,9 +577,9 @@ class ChatView(APIView):
                 logger.warning("JSON vazado bloqueado: %r", resposta_final[:200])
                 resposta_final = MSG_FALLBACK
                 salvar_no_historico = False
-
+ 
             logger.info("[AIPO] %s", resposta_final)
-
+ 
             if salvar_no_historico:
                 # Persistência atômica: nunca fica pergunta sem resposta no histórico
                 with transaction.atomic():
@@ -546,31 +598,25 @@ class ChatView(APIView):
                         ),
                         MensagemChat(conversa=conversa, papel="assistant", conteudo=resposta_final),
                     ])
-
+ 
             # na primeira troca, pede ao Ollama um título curto.
             # Se falhar, fica o título provisório (primeiros 60 caracteres da pergunta).
             # `conversa` pode ser None se a resposta foi o fallback e nada foi persistido.
             if nova_conversa and message and conversa:
-                titulo = gerar_titulo(message, resposta_final)
-                if titulo:
-                    conversa.titulo = titulo[:120]  # titulo tem max_length=120
-
-                    # "titulo" precisa estar em update_fields; auto_now só atualiza
-                    # "atualizado_em" se o campo também estiver na lista
-                    conversa.save(update_fields=["titulo", "atualizado_em"])
+                if _aplicar_titulo_gerado(conversa, message, resposta_final):
                     # Resumo em segundo plano, só depois do commit: não atrasa a resposta
                     transaction.on_commit(
                         lambda cid=conversa.id: threading.Thread(
                             target=atualizar_resumo, args=(cid,), daemon=True
                         ).start()
                     )
-
+ 
             return JsonResponse({
                 "message": resposta_final,
                 "conversa_id": conversa.id if conversa else None,
                 "fontes": fontes,
             })
-
+ 
         except Http404:
             raise
         except ReformatacaoError as erro:
