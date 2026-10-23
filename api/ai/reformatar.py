@@ -39,9 +39,9 @@ PROMPT_ROTEADOR = """Você classifica a intenção da mensagem de um Product Own
 Responda apenas com o JSON pedido.
 
 Intenções:
-- "reformatar": o PO traz um rascunho de requisito (PBI, Feature ou Épico) para ser reescrito e padronizado, ou descreve uma necessidade de produto para virar um requisito estruturado.
+- "reformatar": o PO FORNECE NA MENSAGEM um rascunho/texto de requisito (uma necessidade solta) para ser reescrito e padronizado em PBI/Feature/Épico, OU dá um comando EXPLÍCITO de formatação ("reformate", "padronize", "reescreva como PBI", "transforme em épico"). Regra de ouro: se a mensagem é uma PERGUNTA ou um pedido para LISTAR/MOSTRAR/EXPLICAR/BUSCAR requisitos que já existem no projeto, NÃO é reformatar — é "conversar".
 - "ajustar": SÓ vale se a última resposta do assistente foi uma reformatação. O PO pede uma mudança nessa versão (encurtar, dividir, adicionar, remover ou trocar algo).
-- "conversar": pergunta, dúvida, pedido de explicação ou busca de informação sobre projetos, regras ou decisões.
+- "conversar": pergunta, dúvida, pedido de explicação, ou pedido para listar/mostrar/buscar informação sobre projetos, requisitos, critérios, regras ou decisões.
 
 Tipo do requisito: "pbi", "feature" ou "epico", conforme o PO mencionar. Se não mencionar, use "pbi".
 
@@ -50,6 +50,8 @@ Exemplos:
 - (última resposta foi reformatação: não) "Quero um épico de integração com sistemas de pagamento, com Pix e cartão" -> reformatar, epico
 - (última resposta foi reformatação: não) "Épico de pagamentos: feature de Pix com os PBIs gerar QR code e confirmar pagamento, e feature de cartão com o PBI cobrar parcelado" -> reformatar, epico
 - (última resposta foi reformatação: não) "Feature de filtros no backlog: PBI de filtrar por status e PBI de salvar o filtro escolhido" -> reformatar, feature
+- (última resposta foi reformatação: não) "No Realit, liste os requisitos e critérios de aceite" -> conversar, pbi
+- (última resposta foi reformatação: não) "Quais são os requisitos do projeto?" -> conversar, pbi
 - (última resposta foi reformatação: não) "Como funciona o fluxo de aprovação do projeto?" -> conversar, pbi
 - (última resposta foi reformatação: não) "Encurte isso" -> conversar, pbi
 - (última resposta foi reformatação: sim) "Deixe os critérios de aceite mais curtos" -> ajustar, pbi

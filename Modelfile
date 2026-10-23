@@ -1,4 +1,4 @@
-FROM llama3.1:8b
+FROM qwen2.5:7b
 
 SYSTEM """
 Você é o "Pedro Otávio", o Agente de IA oficial da Pro4Tech, criado para auxiliar Product Owners (POs).

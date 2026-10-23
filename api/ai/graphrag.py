@@ -765,7 +765,7 @@ def buscar_no_grafo(pergunta, projeto_id, max_entidades=5, max_saltos=1):
         else:
             nos = nos[:-1]
         texto = renderizar(caminhos, nos, temas, documentos)
-    return texto + "\n\nUse apenas o acima; se não cobrir a pergunta, diga que não sabe."
+    return texto
 
 
 def embeddar_entidades(projeto_id=None, lote=64):
