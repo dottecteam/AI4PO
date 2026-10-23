@@ -170,6 +170,8 @@ POSTGRES_PASSWORD=sua-senha
 
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=ai4po-model
+
+GRAPH_MODEL=ai4po-model
 ```
 
 > Não versione o arquivo `.env`. Utilize um `.env.example` para documentar as variáveis necessárias.

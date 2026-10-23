@@ -16,6 +16,7 @@ import { exportarConversaPDF } from "@/app/services/API/chat"
 import CartaoValidacao, {
   type Validacao,
 } from "@/app/components/app/CartaoValidacao"
+import { comandos } from "@/app/constants/commands"
 
 const extensoes = [".txt", ".md"]
 const tamanho_max = 10 * 1024 * 1024
@@ -64,6 +65,13 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
   const inputArquivoRef = useRef<HTMLInputElement>(null)
   const fimMensagensRef = useRef<HTMLDivElement>(null)
   const campoTextoRef = useRef<HTMLTextAreaElement>(null)
+
+  const [mostrarComandos, setMostrarComandos] = useState(false)
+  const selecionarComando = (comando: string) => {
+    setMensagem(comando + " ")
+    setMostrarComandos(false)
+    campoTextoRef.current?.focus()
+  }
 
   // Campo de texto que cresce com o conteúdo, até altura_max_input (depois rola).
   // Roda também quando a mensagem é limpa após o envio, devolvendo o campo ao tamanho de 1 linha.
@@ -291,7 +299,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           </span>
         </div>
 
-        <div className="w-auto h-10 bg-(--surface-elevated) rounded-lg flex justify-center items-center px-3 shrink-0 cursor-pointer hover:bg-(--surface-base) transition-colors border border-gray-800/50">
+        {/* <div className="w-auto h-10 bg-(--surface-elevated) rounded-lg flex justify-center items-center px-3 shrink-0 cursor-pointer hover:bg-(--surface-base) transition-colors border border-gray-800/50">
           <button
             type="button"
             className="flex items-center justify-center p-1 pr-2 border-r border-gray-700"
@@ -304,7 +312,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
               Filtros de Busca
             </span>
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* Área de Mensagens */}
@@ -421,14 +429,51 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           >
             <Paperclip size={20} className="text-secondary" />
           </button>
-          <div className="flex-1">
+          <div className="flex-1 relative">
+            {mostrarComandos && (
+              <div className="absolute bottom-full left-0 mb-2 w-full rounded-xl border border-gray-700/50 bg-(--surface-elevated) shadow-xl overflow-hidden z-50">
+                <div className="px-3 py-2 text-xs text-secondary border-b border-gray-700/50">
+                  Comandos
+                </div>
+
+                {comandos
+                  .filter((item) =>
+                    item.comando.startsWith(
+                      mensagem.split(" ")[0].toLowerCase(),
+                    ),
+                  )
+                  .map((item) => (
+                    <button
+                      key={item.comando}
+                      type="button"
+                      onClick={() => selecionarComando(item.comando)}
+                      className="w-full flex flex-col items-start gap-1 px-4 py-3 text-left hover:bg-gray-700/50 transition-colors"
+                    >
+                      <span className="text-sm font-medium text-white">
+                        {item.comando}
+                      </span>
+
+                      <span className="text-xs text-secondary">
+                        {item.descricao}
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            )}
+
             <textarea
               ref={campoTextoRef}
               rows={1}
               value={mensagem}
-              onChange={(event) => setMensagem(event.target.value)}
+              onChange={(event) => {
+                const valor = event.target.value
+                setMensagem(valor)
+                setMostrarComandos(
+                  valor.startsWith("/") && !valor.includes(" "),
+                )
+              }}
               onKeyDown={handleKeyDown}
-              placeholder="Pergunte sobre regras, decisões arquiteturais ou use /validar para validar requisitos levantados..."
+              placeholder="Pergunte sobre regras, decisões arquiteturais ou digite '/' para ver comandos."
               className="block w-full min-h-12 md:min-h-14 max-h-40 resize-none overflow-y-auto scrollbar-input bg-(--surface-elevated) outline-none rounded-xl px-4 py-3 md:py-4 text-sm sm:text-base text-white focus:ring-2 focus:ring-primary border border-gray-700/50 transition duration-200"
             />
           </div>
