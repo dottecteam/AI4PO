@@ -26,7 +26,7 @@ from ai.models import ChunkDoc, Entidade, Comunidade, Relacao
 OLLAMA_URL = config("OLLAMA_URL", default="http://localhost:11434")
 # Para extração usamos o modelo base (sem persona), que segue JSON melhor.
 # O default acompanha o modelo realmente usado nos testes locais (GRAPH_MODEL no .env).
-MODELO_GRAFO = config("GRAPH_MODEL", default="qwen2.5:7b")
+MODELO_GRAFO = config("GRAPH_MODEL", default="ai4po-model")
 KEEP_ALIVE = config("OLLAMA_KEEP_ALIVE", default="30m")
 # Saída longa (schema + descrições) rende 150-230s a ~11-17 tokens/s no 7B: o teto
 # fixo de 120s matava o lote e jogava fora a inferência já paga no caminho.
@@ -866,4 +866,4 @@ def _ingestao_grafo_worker(progresso_id):
             except Exception:
                 pass
     finally:
-        connections.close_old_connections()
+        connections.close_all()
