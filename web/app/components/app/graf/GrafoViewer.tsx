@@ -91,45 +91,6 @@ function posicoesIniciais(d: Dados): Map<number, Pos> | null {
   return pos
 }
 
-// Distribui as comunidades em aglomerados compactos e determinísticos (mais
-// "teia do Obsidian" que um layout aleatório). Retorna o mapa id -> posição.
-function layoutPorComunidade(d: Dados): Map<number, Pos> {
-  const grupos = new Map<string, No[]>()
-  for (const no of d.nos) {
-    const chave = no.comunidade != null ? `c:${no.comunidade}` : `t:${no.tipo || "outros"}`
-    const grupo = grupos.get(chave) ?? []
-    grupo.push(no)
-    grupos.set(chave, grupo)
-  }
-  const ordenados = [...grupos.entries()].sort((a, b) => b[1].length - a[1].length)
-  const colunas = Math.max(1, Math.ceil(Math.sqrt(ordenados.length * 1.35)))
-  const espacamentoX = 520
-  const espacamentoY = 430
-  const largura = Math.max(0, (colunas - 1) * espacamentoX)
-  const linhas = Math.ceil(ordenados.length / colunas)
-  const altura = Math.max(0, (linhas - 1) * espacamentoY)
-  const posicoes = new Map<number, Pos>()
-  ordenados.forEach(([, nos], indice) => {
-    const centroX = (indice % colunas) * espacamentoX - largura / 2
-    const centroY = Math.floor(indice / colunas) * espacamentoY - altura / 2
-    const raio = Math.max(42, Math.min(145, 25 * Math.sqrt(nos.length)))
-    const lista = [...nos].sort((a, b) => (b.grau ?? 0) - (a.grau ?? 0))
-    lista.forEach((no, i) => {
-      if (lista.length === 1) {
-        posicoes.set(no.id, { x: centroX, y: centroY })
-        return
-      }
-      const angulo = (2 * Math.PI * i) / lista.length - Math.PI / 2
-      const fator = (no.grau ?? 0) > 4 ? 0.68 : 1
-      posicoes.set(no.id, {
-        x: centroX + Math.cos(angulo) * raio * fator,
-        y: centroY + Math.sin(angulo) * raio * fator,
-      })
-    })
-  })
-  return posicoes
-}
-
 type Catalogo = {
   tiposOrd: [string, number][]
   comsOrd: [number, number][]
@@ -268,6 +229,9 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
   const [focoLocal, setFocoLocal] = useState(false)
   const [fixos, setFixos] = useState<Set<string>>(new Set())
   const [mostrarCruzadas, setMostrarCruzadas] = useState(false)
+  const [moverComunidade, setMoverComunidade] = useState(false)
+  const moverComunidadeRef = useRef(false)
+  moverComunidadeRef.current = moverComunidade
 
   // ---- carga ---------------------------------------------------------------
   useEffect(() => {
@@ -441,12 +405,16 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
     const el = containerRef.current
     if (!dados || !el) return
 
-    // Preserva posições salvas; sem nada salvo, abre com as comunidades agrupadas
-    // (determinístico e mais legível que um layout aleatório).
-    const pos = posicoesIniciais(dados) ?? layoutPorComunidade(dados)
+    // Se o usuário salvou posições, respeita (preset). Caso contrário usa layout
+    // force-directed (cose): agrupa organicamente e forma a "teia/cérebro" conectado,
+    // em vez de anéis separados num grid. Os nós nascem sem posição p/ o cose calcular.
+    const salvo = posicoesIniciais(dados)
+    const pos = salvo ?? new Map<number, Pos>()
     const ids = new Set(dados.nos.map((n) => n.id))
     const comPorId = new Map(dados.nos.map((n) => [n.id, n.comunidade ?? -1]))
-    const layout: any = { name: "preset" }
+    const layout: any = salvo
+      ? { name: "preset" }
+      : { name: "cose", animate: false, nodeRepulsion: () => 12000, idealEdgeLength: () => 42, gravity: 0.5, gravityRange: 3.5, padding: 50, numIter: 2500 }
 
     const cy = cytoscape({
       container: el,
@@ -487,13 +455,15 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
     cyRef.current = cy
     limiarRef.current = -1
 
-    // Se algum nó ficou sem posição válida (NaN/ausente), refaz com cose do zero:
-    // coordenadas inválidas deixam o canvas vazio sem erro no console.
-    const posInvalida = dados.nos.some((n) => {
-      const p = pos.get(n.id)
-      return !p || !Number.isFinite(p.x) || !Number.isFinite(p.y)
-    })
-    if (posInvalida) cy.layout({ name: "cose", animate: false, padding: 48 } as any).run()
+    // Só checa posições inválidas quando usamos preset (salvas). Sem salvas, o próprio
+    // cose já calculou tudo. Coordenadas NaN deixariam o canvas vazio sem erro no console.
+    if (salvo) {
+      const posInvalida = dados.nos.some((n) => {
+        const p = pos.get(n.id)
+        return !p || !Number.isFinite(p.x) || !Number.isFinite(p.y)
+      })
+      if (posInvalida) cy.layout({ name: "cose", animate: false, padding: 50 } as any).run()
+    }
 
     // Enquadra tudo e continua reenquadrando (primeiro frame e qualquer mudança
     // de tamanho do container) até o usuário mexer no zoom/pan/nós.
@@ -550,9 +520,36 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
     cy.on("grab zoom", () => setTip(null))
     cy.on("zoom", () => atualizarRotulos(cy))
 
+    // "Mover comunidade junto": ao arrastar um nó, desloca todos da mesma comunidade
+    // pela mesma distância — organiza o grafo em blocos em vez de nó por nó.
+    let arrasto: { id: string; x0: number; y0: number; pares: { id: string; x0: number; y0: number }[] } | null = null
+    cy.on("dragstart", "node", (e) => {
+      const no = e.target
+      const pares: { id: string; x0: number; y0: number }[] = []
+      if (moverComunidadeRef.current) {
+        const com = no.data("comunidade")
+        cy.nodes().forEach((n) => {
+          if (n.data("comunidade") === com && n.id() !== no.id()) {
+            pares.push({ id: n.id(), x0: n.position("x"), y0: n.position("y") })
+          }
+        })
+      }
+      arrasto = { id: no.id(), x0: no.position("x"), y0: no.position("y"), pares }
+    })
+    cy.on("drag", "node", (e) => {
+      if (!arrasto || e.target.id() !== arrasto.id) return
+      const dx = e.target.position("x") - arrasto.x0
+      const dy = e.target.position("y") - arrasto.y0
+      arrasto.pares.forEach((pr) => {
+        const el = cy.getElementById(pr.id)
+        if (el.nonempty()) el.position({ x: pr.x0 + dx, y: pr.y0 + dy })
+      })
+    })
+
     // Ao soltar um nó: encaixa na grade (facilita alinhar) e salva (debounce).
     let timer: ReturnType<typeof setTimeout>
     cy.on("dragfree", "node", (e) => {
+      arrasto = null
       const p = e.target.position()
       e.target.position({
         x: Math.round(p.x / GRADE) * GRADE,
@@ -699,17 +696,17 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
   function reorganizar() {
     const cy = cyRef.current
     if (!cy || !dados) return
-    if (!window.confirm("Reorganizar o grafo por comunidades? As posições salvas serão substituídas.")) return
-    const novasPosicoes = layoutPorComunidade(dados)
-    cy.nodes().forEach((no) => {
-      if (fixos.has(no.id())) return // respeita os nós que o usuário fixou
-      const destino = novasPosicoes.get(Number(no.id()))
-      if (destino) no.animate({ position: destino }, { duration: 520 })
-    })
-    window.setTimeout(() => {
+    if (!window.confirm("Reorganizar o grafo (layout orgânico)? As posições salvas serão substituídas.")) return
+    // guarda os nós fixados para restaurar depois do force layout
+    const travados = new Map<string, { x: number; y: number }>()
+    cy.nodes().forEach((no) => { if (fixos.has(no.id())) travados.set(no.id(), no.position()) })
+    const l = cy.layout({ name: "cose", animate: false, nodeRepulsion: () => 12000, idealEdgeLength: () => 42, gravity: 0.5, gravityRange: 3.5, padding: 50, numIter: 2500 } as any)
+    l.one("layoutstop", () => {
+      travados.forEach((p, id) => cy.getElementById(id).position(p))
       cy.animate({ fit: { eles: cy.elements(), padding: 72 } }, { duration: 300 })
       salvarPosicoes(cy)
-    }, 560)
+    })
+    l.run()
   }
 
   function alternarTela() {
@@ -822,6 +819,21 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
             style={{ backgroundColor: PAINEL }}
           >
             Conexões entre grupos: {mostrarCruzadas ? "visíveis" : "ocultas"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMoverComunidade((v) => !v)}
+            aria-pressed={moverComunidade}
+            title="Ao arrastar um nó, move a comunidade inteira junto"
+            className={`rounded-lg border border-white/10 px-2.5 py-1.5 text-xs transition-colors ${
+              moverComunidade
+                ? "bg-[#A78BFA]/20 text-[#A78BFA]"
+                : "text-gray-400 hover:text-gray-200"
+            }`}
+            style={{ backgroundColor: PAINEL }}
+          >
+            Mover comunidade junto: {moverComunidade ? "ativado" : "desativado"}
           </button>
 
           <span className="ml-auto text-xs text-gray-500" aria-live="polite">
