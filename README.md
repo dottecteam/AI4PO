@@ -57,14 +57,15 @@ Abaixo estão algumas das principais funcionalidades previstas para o sistema:
 | #10 | Como PO, quero **enviar uma especificação para análise da IA** e receber sugestões sobre meus requisitos com base em requisitos semelhantes de projetos anteriores, para identificar lacunas e melhorar a qualidade da especificação. | Alta | 13 | 2 |
 | #11 | Como PO, quero **padronizar meus requisitos e gerar uma especificação organizada** de acordo com o padrão da Pro4Tech para facilitar sua documentação. | Alta | 8 | 2 |
 | #12 | Como PO, quero **exportar os requisitos e especificações** para utilizá-los em outras ferramentas da equipe. | Alta | 5 | 2 |
-| #13 | Como PO, quero **ver as fontes utilizadas pelo Chatbot** para verificar de onde vieram as informações da resposta. | Média | 5 | 3 |
-| #14 | Como PO, quero **receber sugestões de documentos relacionados à minha pesquisa** para encontrar informações relevantes. | Média | 5 | 3 |
-| #15 | Como gestor, quero **registrar as competências e projetos dos times** para manter o conhecimento profissional disponível na plataforma. | Média | 5 | 3 |
-| #16 | Como gestor, quero **buscar profissionais por competência** para encontrar pessoas com conhecimentos adequados para cada necessidade. | Média | 8 | 3 |
-| #17 | Como gestor, quero **consultar o histórico dos profissionais** para conhecer suas experiências em projetos anteriores. | Média | 3 | 3 |
-| #18 | Como usuário, quero **consultar o histórico de alterações dos itens do projeto e registrar justificativas para as alterações**, para acompanhar a evolução do projeto e preservar o contexto das decisões tomadas. | Média | 5 | 3
-| #19 | Como líder, quero **acessar o manual da plataforma** para entender como utilizar a solução. | Baixa | 3 | 3 |
-
+| #13 | Como PO, quero que a IA **relacione entidades, decisões e componentes num grafo de conhecimento** para recuperar informações conectadas entre projetos (ex.: "quem fez o quê"). | Alta | 13 | 2 |
+| #14 | Como PO, quero **visualizar o grafo de conhecimento** (por projeto e global) para explorar relações e comunidades entre as informações. | Média | 8 | 2 |
+| #15 | Como PO, quero **ver as fontes utilizadas pelo Chatbot** para verificar de onde vieram as informações da resposta. | Média | 5 | 3 |
+| #16 | Como PO, quero **receber sugestões de documentos relacionados à minha pesquisa** para encontrar informações relevantes. | Média | 5 | 3 |
+| #17 | Como gestor, quero **registrar as competências e projetos dos times** para manter o conhecimento profissional disponível na plataforma. | Média | 5 | 3 |
+| #18 | Como gestor, quero **buscar profissionais por competência** para encontrar pessoas com conhecimentos adequados para cada necessidade. | Média | 8 | 3 |
+| #19 | Como gestor, quero **consultar o histórico dos profissionais** para conhecer suas experiências em projetos anteriores. | Média | 3 | 3 |
+| #20 | Como usuário, quero **consultar o histórico de alterações dos itens do projeto e registrar justificativas para as alterações**, para acompanhar a evolução do projeto e preservar o contexto das decisões tomadas. | Média | 5 | 3 |
+| #21 | Como líder, quero **acessar o manual da plataforma** para entender como utilizar a solução. | Baixa | 3 | 3 |
 ---
 
 ## Tecnologias Utilizadas
