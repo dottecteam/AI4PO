@@ -20,7 +20,7 @@ export default function Breadcrumb() {
 
       <p className="text-[#EF7541]">/</p>
       <Link
-        href={`/app/projetos/${projeto.id}`}
+        href={`/projetos/${projeto.id}`}
         className="hover:text-white hover:underline"
       >
         {projeto.titulo}
@@ -30,7 +30,7 @@ export default function Breadcrumb() {
         <>
           <p className="text-[#EF7541]">/</p>
           <Link
-            href={`/app/projetos/${projeto.id}/epicos/${epico.id}`}
+            href={`/projetos/${projeto.id}/epicos/${epico.id}`}
             className="hover:text-white hover:underline"
           >
             {epico.titulo}
@@ -42,7 +42,7 @@ export default function Breadcrumb() {
         <>
           <p className="text-[#EF7541]">/</p>
           <Link
-            href={`/app/projetos/${projeto.id}/epicos/${epico?.id}/features/${feature.id}`}
+            href={`/projetos/${projeto.id}/epicos/${epico?.id}/features/${feature.id}`}
             className="hover:text-white hover:underline"
           >
             {feature.titulo}

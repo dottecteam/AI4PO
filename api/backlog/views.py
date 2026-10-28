@@ -1,13 +1,17 @@
 from rest_framework import generics
 from backlog.models import Epico, Feature, PBI, Cenario
 from backlog.serializers import EpicoSerializer, FeatureSerializer, PBISerializer, CenarioSerializer
+from django.db.models import Count
 
 
 class EpicoListCreateView(generics.ListCreateAPIView):
     serializer_class = EpicoSerializer
 
     def get_queryset(self):
-        queryset = Epico.objects.all()
+        queryset = Epico.objects.annotate(
+            total_features=Count("features", distinct=True),
+            total_pbis=Count("features__pbis", distinct=True),
+        )
         id_projeto = self.request.query_params.get('idProjeto')
         if id_projeto is not None:
             queryset = queryset.filter(projeto_id=id_projeto)
@@ -23,7 +27,9 @@ class FeatureListCreateView(generics.ListCreateAPIView):
     serializer_class = FeatureSerializer
 
     def get_queryset(self):
-        queryset = Feature.objects.all()
+        queryset = Feature.objects.annotate(
+            total_pbis = Count("pbis", distinct=True)
+        )
         id_epico = self.request.query_params.get('idEpico')
         if id_epico is not None:
             queryset = queryset.filter(epico_id=id_epico)

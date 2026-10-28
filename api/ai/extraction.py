@@ -49,7 +49,7 @@ def extrair_texto(caminho_no_storage):
         conteudo = arquivo.read()
 
     try:
-        return conteudo.decode('utf-8')
+        return conteudo.decode('utf-8-sig')
     except UnicodeDecodeError as erro:
         raise FalhaDeDecodificacaoError(
             f'Conteúdo de {caminho_no_storage} não é texto UTF-8 válido.'

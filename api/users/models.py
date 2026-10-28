@@ -36,6 +36,7 @@ class UsuarioPO(AbstractBaseUser, PermissionsMixin):
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    excluido_em = models.DateTimeField(null=True, blank=True)
 
     objects = UsuarioPOManager()
 

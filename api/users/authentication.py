@@ -16,11 +16,17 @@ class CookieJWTAuthentication(JWTAuthentication):
         raw_token = request.COOKIES.get("access_token")
         if raw_token is None:
             return None  # sem cookie = requisição anônima
-        
+
         validated_token = self.get_validated_token(raw_token)
-        
+
         # Valida o CSRF para requisições de mutação de estado (POST, PUT, PATCH, DELETE)
         if request.method not in ('GET', 'HEAD', 'OPTIONS', 'TRACE'):
             enforce_csrf(request)
-            
+
         return self.get_user(validated_token), validated_token
+
+    def get_user(self, validated_token):
+        user = super().get_user(validated_token)
+        if user.excluido_em is not None:
+            raise exceptions.AuthenticationFailed("Login excluído.", code="user_deleted")
+        return user

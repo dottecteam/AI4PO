@@ -8,6 +8,7 @@ import UploadDocumento from "@/app/components/app/projetos/UploadDocumento"
 import DropdownSection from "@/app/components/app/projetos/DropdownSection"
 import ProjetoInfo from "@/app/components/app/projetos/ProjetoInfo"
 import TabelaEpicos from "@/app/components/app/projetos/TabelaEpicos"
+import GrafoViewer from "@/app/components/app/graf/GrafoViewer"
 import Searchbar from "@/app/components/app/Searchbar"
 import { useProjetoAtual } from "@/app/contexts/ProjetoContext"
 import useDebounce from "@/app/hooks/useDebounce"
@@ -21,6 +22,23 @@ export default function PaginaProjeto() {
 
   const [documentos, setDocumentos] = useState<Documento[]>([])
   const [modalUploadAberto, setModalUploadAberto] = useState(false)
+
+  // Pesquisa
+  const [termo, setTermo] = useState("")
+  const termoComDebounce = useDebounce(termo, 300)
+
+  // Filtro
+  // tipo: null = nenhum filtro aplicado (todos os tipos selecionados).
+  // Evita o bug de inicializar com a lista de tipos antes dos documentos carregarem.
+  const [filtros, setFiltros] = useState<{
+    tipo: ValorFiltro[] | null
+    dataMin: string
+    dataMax: string
+  }>({
+    tipo: null,
+    dataMin: "",
+    dataMax: "",
+  })
 
   async function carregarDocumentos() {
     if (!projeto) return
@@ -50,30 +68,12 @@ export default function PaginaProjeto() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentos])
 
-  if (!projeto)
-    return <p className="text-white text-center">Projeto não encontrado.</p>
-
   // Para aplicar nos filtros
   const tipoUnicos = Array.from(new Set(documentos.map((p) => p.tipo)))
   const opcoesTipos: OpcaoFiltro[] = tipoUnicos.map((s) => ({
     rotulo: s,
     valor: s,
   }))
-
-  // Pesquisa
-  const [termo, setTermo] = useState("")
-  const termoComDebounce = useDebounce(termo, 300)
-
-  // Filtro
-  const [filtros, setFiltros] = useState<{
-    tipo: ValorFiltro[]
-    dataMin: string
-    dataMax: string
-  }>({
-    tipo: tipoUnicos,
-    dataMin: "",
-    dataMax: "",
-  })
 
   function atualizarFiltro(chave: string, novosSelecionados: ValorFiltro[]) {
     setFiltros((atual) => ({ ...atual, [chave]: novosSelecionados }))
@@ -82,6 +82,7 @@ export default function PaginaProjeto() {
   function atualizarData(dataMin: string, dataMax: string) {
     setFiltros((atual) => ({ ...atual, dataMin, dataMax }))
   }
+
   const grupos: GrupoFiltro[] = [
     { chave: "tipo", rotulo: "Extensão", opcoes: opcoesTipos },
   ]
@@ -96,12 +97,16 @@ export default function PaginaProjeto() {
       const dataDocumento = documento.data.slice(0, 10)
 
       return (
-        (filtros.tipo.length === 0 || filtros.tipo.includes(documento.tipo)) &&
+        (!filtros.tipo || filtros.tipo.includes(documento.tipo)) &&
         (!filtros.dataMin || dataDocumento >= filtros.dataMin) &&
         (!filtros.dataMax || dataDocumento <= filtros.dataMax)
       )
     },
   )
+
+  // O return antecipado fica depois de todos os hooks
+  if (!projeto)
+    return <p className="text-white text-center">Projeto não encontrado.</p>
 
   return (
     <main className="bg-[#010812] min-h-screen px-7 pt-10 pb-30 gap-5 flex flex-col text-white">
@@ -124,7 +129,7 @@ export default function PaginaProjeto() {
             />
             <MenuFiltro
               grupos={grupos}
-              selecionados={{ tipo: filtros.tipo }}
+              selecionados={{ tipo: filtros.tipo ?? tipoUnicos }}
               onAtualizar={atualizarFiltro}
             />
             <FiltroData
@@ -134,9 +139,7 @@ export default function PaginaProjeto() {
             />
           </section>
 
-          {documentosFiltrados.length > 0 ? (
-            ""
-          ) : (
+          {documentosFiltrados.length === 0 && (
             <p className="text-white text-md text-center col-span-full">
               Nenhum documento registrado.
             </p>
@@ -149,6 +152,11 @@ export default function PaginaProjeto() {
             />
           ))}
         </section>
+      </DropdownSection>
+
+      {/* Grafo de conhecimento (GraphRAG) deste projeto */}
+      <DropdownSection label="Grafo de Conhecimento">
+        <GrafoViewer projetoId={projeto.id} />
       </DropdownSection>
 
       <UploadDocumento
