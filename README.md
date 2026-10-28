@@ -64,9 +64,8 @@ Abaixo estão algumas das principais funcionalidades previstas para o sistema:
 | #17 | Como gestor, quero **registrar as competências e projetos dos times** para manter o conhecimento profissional disponível na plataforma. | Média | 5 | 3 |
 | #18 | Como gestor, quero **buscar profissionais por competência** para encontrar pessoas com conhecimentos adequados para cada necessidade. | Média | 8 | 3 |
 | #19 | Como gestor, quero **consultar o histórico dos profissionais** para conhecer suas experiências em projetos anteriores. | Média | 3 | 3 |
-| #20 | Como usuário, quero **consultar o histórico de alterações dos itens do projeto e registrar justificativas para as alterações**, para acompanhar a evolução do projeto e preservar o contexto das decisões tomadas. | Média | 5 | 3
+| #20 | Como usuário, quero **consultar o histórico de alterações dos itens do projeto e registrar justificativas para as alterações**, para acompanhar a evolução do projeto e preservar o contexto das decisões tomadas. | Média | 5 | 3 |
 | #21 | Como líder, quero **acessar o manual da plataforma** para entender como utilizar a solução. | Baixa | 3 | 3 |
-
 ---
 
 ## Tecnologias Utilizadas
