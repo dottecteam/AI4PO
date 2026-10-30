@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { RefreshCw, Search, Trash2, UserCheck, UserX, X } from "lucide-react"
+import { Plus, RefreshCw, Search, Trash2, UserCheck, UserX, X } from "lucide-react"
 import { useAuth } from "@/app/contexts/AuthContext"
 import {
   alterarEstadoLogin,
@@ -13,6 +13,7 @@ import {
   sessaoInvalida,
 } from "@/app/services/API/usuarios"
 import type { UsuarioAdmin } from "@/app/types/api/usuario"
+import NovoLoginModal from "./novoLogin"
 
 type Filtro = "todos" | "ativos" | "desativados"
 type Acao = { tipo: "desativar" | "reativar" | "excluir"; alvo: UsuarioAdmin }
@@ -62,6 +63,7 @@ function UsuariosAdmin() {
   const [processando, setProcessando] = useState(false)
   const [erroAcao, setErroAcao] = useState("")
   const [aviso, setAviso] = useState("")
+  const [cadastrando, setCadastrando] = useState(false)
 
   // Quem não é admin não tem nada a fazer aqui (a API também barra com 403)
   useEffect(() => {
@@ -107,6 +109,19 @@ function UsuariosAdmin() {
     setCarregando(true)
     setAviso("")
     setRecarga((n) => n + 1)
+  }
+
+  const abrirCadastro = () => {
+    setAviso("")
+    setCadastrando(true)
+  }
+
+  const aoCriar = (novo: UsuarioAdmin) => {
+    setUsuarios((prev) => [...prev, novo].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")))
+    setFiltro("todos")
+    setBusca("")
+    setAviso(`Login de ${novo.nome} criado.`)
+    setCadastrando(false)
   }
 
   const abrirConfirmacao = (tipo: Acao["tipo"], alvo: UsuarioAdmin) => {
@@ -177,15 +192,27 @@ function UsuariosAdmin() {
             Gerencie o acesso dos POs à plataforma
           </span>
         </div>
-        <button
-          type="button"
-          onClick={recarregar}
-          disabled={carregando}
-          aria-label="Atualizar lista"
-          className="h-10 w-10 shrink-0 bg-(--surface-elevated) rounded-lg flex items-center justify-center border border-gray-800/50 hover:bg-(--surface-base) transition-colors disabled:opacity-50"
-        >
-          <RefreshCw size={18} className={`text-white ${carregando ? "animate-spin" : ""}`} />
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={abrirCadastro}
+            aria-label="Criar login"
+            title="Criar login"
+            className="h-10 px-3 sm:px-4 bg-primary hover:bg-primary-dark rounded-lg flex items-center justify-center gap-2 text-sm font-medium text-white transition-colors"
+          >
+            <Plus size={18} />
+            <span className="hidden sm:inline">Criar login</span>
+          </button>
+          <button
+            type="button"
+            onClick={recarregar}
+            disabled={carregando}
+            aria-label="Atualizar lista"
+            className="h-10 w-10 shrink-0 bg-(--surface-elevated) rounded-lg flex items-center justify-center border border-gray-800/50 hover:bg-(--surface-base) transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={18} className={`text-white ${carregando ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </div>
 
       {/* Conteúdo */}
@@ -327,6 +354,10 @@ function UsuariosAdmin() {
           </ul>
         )}
       </div>
+
+      {cadastrando && (
+        <NovoLoginModal onFechar={() => setCadastrando(false)} onCriado={aoCriar} />
+      )}
 
       {/* Confirmação */}
       {acao && textos && (

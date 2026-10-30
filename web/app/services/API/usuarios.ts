@@ -1,13 +1,15 @@
-import type { UsuarioAdmin, UsuarioLogado } from "@/app/types/api/usuario"
+import type { ErrosDeCampos, NovoLogin, UsuarioAdmin, UsuarioLogado } from "@/app/types/api/usuario"
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/+$/, "")
 
 export class ApiError extends Error {
   status: number
+  campos: ErrosDeCampos
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, campos: ErrosDeCampos = {}) {
     super(message)
     this.status = status
+    this.campos = campos
   }
 }
 
@@ -31,14 +33,15 @@ async function requisitar<T>(caminho: string, init: RequestInit = {}): Promise<T
 
   if (!resposta.ok) {
     let detalhe = "Erro ao comunicar com o servidor."
+    let campos: ErrosDeCampos = {}
     try {
       const corpo = await resposta.json()
       if (corpo?.detail) detalhe = corpo.detail
-    } 
-    catch {
-    
+      if (corpo?.campos && typeof corpo.campos === "object") campos = corpo.campos
+    } catch {
+      // corpo sem JSON: mantém a mensagem padrão
     }
-    throw new ApiError(resposta.status, detalhe)
+    throw new ApiError(resposta.status, detalhe, campos)
   }
 
   if (resposta.status === 204) return undefined as T
@@ -49,12 +52,21 @@ export const buscarUsuarioLogado = () => requisitar<UsuarioLogado>("/api/auth/me
 
 export const listarUsuarios = () => requisitar<UsuarioAdmin[]>("/api/auth/admin/users/")
 
+// Cadastra um novo PO
+export const criarLogin = (dados: NovoLogin) =>
+  requisitar<UsuarioAdmin>("/api/auth/admin/users/", {
+    method: "POST",
+    body: JSON.stringify(dados),
+  })
+
+
 export const alterarEstadoLogin = (id: number, isActive: boolean) =>
   requisitar<UsuarioAdmin>(`/api/auth/admin/users/${id}/`, {
     method: "PATCH",
     body: JSON.stringify({ is_active: isActive }),
   })
 
+// o login deixa de existir para o usuário, mas projetos e documentos ficam
 export const excluirLogin = (id: number) =>
   requisitar<void>(`/api/auth/admin/users/${id}/`, { method: "DELETE" })
 

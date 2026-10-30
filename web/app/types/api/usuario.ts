@@ -6,7 +6,16 @@ export type UsuarioLogado = {
   is_admin: boolean
 }
 
-// Login de PO
+// Corpo do cadastro de PO
+export type NovoLogin = {
+  nome: string
+  email: string
+  senha: string
+}
+
+export type ErrosDeCampos = Partial<Record<keyof NovoLogin, string[]>>
+
+// Login de PO nas rotas administrativas
 export type UsuarioAdmin = {
   id: number
   nome: string
