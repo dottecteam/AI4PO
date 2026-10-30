@@ -1,6 +1,9 @@
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
-from django.db import transaction
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.db import IntegrityError, transaction
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -23,6 +26,7 @@ COOKIE_KWARGS = dict(httponly=True, secure=not settings.DEBUG, samesite="Lax") #
 
 
 def serialize_user(user):
+    # Serialização para o front-end: expõe apenas os dados que o usuário vê
     return {"id": user.id_po, "nome": user.nome, "email": user.email, "is_admin": user.is_staff}
 
 def serialize_user_admin(user):
@@ -43,13 +47,65 @@ def revogar_sessoes(user):
         BlacklistedToken.objects.get_or_create(token=token)
 
 
+SENHA_MIN = 6
+NOME_MAX = 100
+EMAIL_MAX = 254
+
+
+def _texto(valor):
+    # Só aceita string, devolve string sem espaços no início/fim. Se não for string, devolve "".
+    return valor.strip() if isinstance(valor, str) else ""
+
+
+def validar_cadastro(dados):
+    nome = _texto(dados.get("nome"))
+    email = _texto(dados.get("email")).lower()
+    senha = dados.get("senha") if isinstance(dados.get("senha"), str) else "" 
+    erros = {}
+
+    if not nome:
+        erros["nome"] = ["O nome é obrigatório."]
+    elif len(nome) > NOME_MAX:
+        erros["nome"] = [f"O nome pode ter no máximo {NOME_MAX} caracteres."]
+
+    if not email:
+        erros["email"] = ["O e-mail é obrigatório."]
+    elif len(email) > EMAIL_MAX:
+        erros["email"] = [f"O e-mail pode ter no máximo {EMAIL_MAX} caracteres."]
+    else:
+        try:
+            validate_email(email)
+        except ValidationError:
+            erros["email"] = ["Informe um e-mail válido."]
+        else:
+            existente = User.objects.filter(email__iexact=email).first()
+            if existente is not None:
+                erros["email"] = [
+                    "Este e-mail pertence a um login excluído e não pode ser reutilizado."
+                    if existente.excluido_em is not None
+                    else "Já existe um login com este e-mail."
+                ]
+
+    if not senha:
+        erros["senha"] = ["A senha é obrigatória."]
+    elif len(senha) < SENHA_MIN:
+        erros["senha"] = [f"A senha deve ter pelo menos {SENHA_MIN} caracteres."]
+    else:
+        try:
+            validate_password(senha, user=User(email=email, nome=nome))
+        except ValidationError as e:
+            erros["senha"] = list(e.messages)
+
+    return {"nome": nome, "email": email, "senha": senha}, erros
+
+
 # Limita requisições anônimas a 5 tentativas por minuto por IP
 class LoginThrottle(AnonRateThrottle):
     rate = '5/min'
 
 class LoginView(APIView):
     authentication_classes = []
-    permission_classes = []  # login tem que ser acessível sem estar autenticado
+    permission_classes = []
     throttle_classes = [LoginThrottle]
 
     def post(self, request):
@@ -71,7 +127,6 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
-
     authentication_classes = []
     permission_classes = []
 
@@ -109,6 +164,7 @@ class AdminUserListView(APIView):
     def get(self, request):
         queryset = User.objects.all().order_by("nome")
 
+        # Logins excluídos ficam fora da listagem
         if request.query_params.get("incluir_excluidos", "").lower() not in ["true", "1"]:
             queryset = queryset.filter(excluido_em__isnull=True)
 
@@ -123,9 +179,24 @@ class AdminUserListView(APIView):
         dados = [serialize_user_admin(u) for u in queryset]
         return Response(dados, status=200)
 
+    def post(self, request):
+        limpos, erros = validar_cadastro(request.data)
+        if erros:
+            return Response({"detail": "Corrija os campos destacados.", "campos": erros}, status=400)
+
+        try:
+            with transaction.atomic():
+                novo = User.objects.create_user(
+                    email=limpos["email"], nome=limpos["nome"], password=limpos["senha"]
+                )
+        except IntegrityError:
+            erros = {"email": ["Já existe um login com este e-mail."]}
+            return Response({"detail": "Corrija os campos destacados.", "campos": erros}, status=400)
+
+        return Response(serialize_user_admin(novo), status=201)
+
 
 class AdminUserDetailView(APIView):
-
     permission_classes = [IsAdmin]
 
     def _alvo(self, request, id_po):
