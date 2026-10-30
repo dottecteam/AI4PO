@@ -47,7 +47,7 @@ def revogar_sessoes(user):
         BlacklistedToken.objects.get_or_create(token=token)
 
 
-SENHA_MIN = 6
+SENHA_MIN = 8
 NOME_MAX = 100
 EMAIL_MAX = 254
 
