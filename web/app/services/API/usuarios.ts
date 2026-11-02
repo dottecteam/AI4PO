@@ -66,7 +66,6 @@ export const alterarEstadoLogin = (id: number, isActive: boolean) =>
     body: JSON.stringify({ is_active: isActive }),
   })
 
-// o login deixa de existir para o usuário, mas projetos e documentos ficam
 export const excluirLogin = (id: number) =>
   requisitar<void>(`/api/auth/admin/users/${id}/`, { method: "DELETE" })
 
@@ -81,4 +80,9 @@ export function sessaoInvalida(erro: unknown) {
 
 export function encerrarSessao() {
   window.location.href = "/sair"
+}
+
+export async function sair() {
+  await requisitar<void>("/api/auth/logout/", { method: "POST" })
+  window.location.href = "/"
 }
