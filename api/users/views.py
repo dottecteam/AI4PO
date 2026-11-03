@@ -26,7 +26,6 @@ COOKIE_KWARGS = dict(httponly=True, secure=not settings.DEBUG, samesite="Lax") #
 
 
 def serialize_user(user):
-    # Serialização para o front-end: expõe apenas os dados que o usuário vê
     return {"id": user.id_po, "nome": user.nome, "email": user.email, "is_admin": user.is_staff}
 
 def serialize_user_admin(user):
@@ -53,50 +52,63 @@ EMAIL_MAX = 254
 
 
 def _texto(valor):
-    # Só aceita string, devolve string sem espaços no início/fim. Se não for string, devolve "".
     return valor.strip() if isinstance(valor, str) else ""
 
 
-def validar_cadastro(dados):
+def validar_dados(dados, parcial=False, ignorar_pk=None):
+    tem = lambda campo: (not parcial) or (campo in dados)
     nome = _texto(dados.get("nome"))
     email = _texto(dados.get("email")).lower()
     senha = dados.get("senha") if isinstance(dados.get("senha"), str) else "" 
-    erros = {}
+    limpos, erros = {}, {}
 
-    if not nome:
-        erros["nome"] = ["O nome é obrigatório."]
-    elif len(nome) > NOME_MAX:
-        erros["nome"] = [f"O nome pode ter no máximo {NOME_MAX} caracteres."]
+    if tem("nome"):
+        limpos["nome"] = nome
+        if not nome:
+            erros["nome"] = ["O nome é obrigatório."]
+        elif len(nome) > NOME_MAX:
+            erros["nome"] = [f"O nome pode ter no máximo {NOME_MAX} caracteres."]
 
-    if not email:
-        erros["email"] = ["O e-mail é obrigatório."]
-    elif len(email) > EMAIL_MAX:
-        erros["email"] = [f"O e-mail pode ter no máximo {EMAIL_MAX} caracteres."]
-    else:
-        try:
-            validate_email(email)
-        except ValidationError:
-            erros["email"] = ["Informe um e-mail válido."]
+    if tem("email"):
+        limpos["email"] = email
+        if not email:
+            erros["email"] = ["O e-mail é obrigatório."]
+        elif len(email) > EMAIL_MAX:
+            erros["email"] = [f"O e-mail pode ter no máximo {EMAIL_MAX} caracteres."]
         else:
-            existente = User.objects.filter(email__iexact=email).first()
-            if existente is not None:
-                erros["email"] = [
-                    "Este e-mail pertence a um login excluído e não pode ser reutilizado."
-                    if existente.excluido_em is not None
-                    else "Já existe um login com este e-mail."
-                ]
+            try:
+                validate_email(email)
+            except ValidationError:
+                erros["email"] = ["Informe um e-mail válido."]
+            else:
+                existentes = User.objects.filter(email__iexact=email)
+                if ignorar_pk is not None:
+                    existentes = existentes.exclude(pk=ignorar_pk)
+                existente = existentes.first()
+                if existente is not None:
+                    erros["email"] = [
+                        "Este e-mail pertence a um login excluído e não pode ser reutilizado."
+                        if existente.excluido_em is not None
+                        else "Já existe um login com este e-mail."
+                    ]
 
-    if not senha:
-        erros["senha"] = ["A senha é obrigatória."]
-    elif len(senha) < SENHA_MIN:
-        erros["senha"] = [f"A senha deve ter pelo menos {SENHA_MIN} caracteres."]
-    else:
-        try:
-            validate_password(senha, user=User(email=email, nome=nome))
-        except ValidationError as e:
-            erros["senha"] = list(e.messages)
+    if tem("senha"):
+        limpos["senha"] = senha
+        if not senha:
+            erros["senha"] = ["A senha é obrigatória."]
+        elif len(senha) < SENHA_MIN:
+            erros["senha"] = [f"A senha deve ter pelo menos {SENHA_MIN} caracteres."]
+        else:
+            try:
+                validate_password(senha, user=User(email=email, nome=nome))
+            except ValidationError as e:
+                erros["senha"] = list(e.messages)
 
-    return {"nome": nome, "email": email, "senha": senha}, erros
+    return limpos, erros
+
+
+def validar_cadastro(dados):
+    return validar_dados(dados)
 
 
 # Limita requisições anônimas a 5 tentativas por minuto por IP
@@ -164,7 +176,8 @@ class AdminUserListView(APIView):
     def get(self, request):
         queryset = User.objects.all().order_by("nome")
 
-        # Logins excluídos ficam fora da listagem
+        # Logins excluídos ficam fora da listagem, a menos que se peça
+        # explicitamente com ?incluir_excluidos=true
         if request.query_params.get("incluir_excluidos", "").lower() not in ["true", "1"]:
             queryset = queryset.filter(excluido_em__isnull=True)
 
@@ -180,7 +193,8 @@ class AdminUserListView(APIView):
         return Response(dados, status=200)
 
     def post(self, request):
-        limpos, erros = validar_cadastro(request.data)
+        dados = request.data if isinstance(request.data, dict) else {}  # corpo que não é objeto JSON
+        limpos, erros = validar_cadastro(dados)
         if erros:
             return Response({"detail": "Corrija os campos destacados.", "campos": erros}, status=400)
 
@@ -209,17 +223,39 @@ class AdminUserDetailView(APIView):
     def patch(self, request, id_po):
         alvo = self._alvo(request, id_po)
         if alvo is None:
-            return Response({"detail": "Você não pode alterar o estado do próprio login."}, status=403)
+            return Response({"detail": "Você não pode alterar o próprio login por aqui."}, status=403)
 
-        novo_estado = request.data.get("is_active")
-        if not isinstance(novo_estado, bool):
-            return Response({"detail": "O campo 'is_active' (true ou false) é obrigatório."}, status=400)
+        dados = request.data if isinstance(request.data, dict) else {}  # corpo que não é objeto JSON
+        muda_estado = "is_active" in dados
+        if muda_estado and not isinstance(dados.get("is_active"), bool):
+            return Response({"detail": "O campo 'is_active' deve ser true ou false."}, status=400)
+        if not muda_estado and not any(c in dados for c in ("nome", "email", "senha")):
+            return Response({"detail": "Informe ao menos um campo para alterar."}, status=400)
 
-        with transaction.atomic():
-            alvo.is_active = novo_estado
-            alvo.save(update_fields=["is_active"])
-            if not novo_estado:
-                revogar_sessoes(alvo)
+        limpos, erros = validar_dados(dados, parcial=True, ignorar_pk=alvo.pk)
+        if erros:
+            return Response({"detail": "Corrija os campos destacados.", "campos": erros}, status=400)
+
+        revoga = False
+        try:
+            with transaction.atomic():
+                if "nome" in limpos:
+                    alvo.nome = limpos["nome"]
+                if "email" in limpos:
+                    alvo.email = limpos["email"]
+                if "senha" in limpos:
+                    alvo.set_password(limpos["senha"])
+                    revoga = True
+                if muda_estado:
+                    alvo.is_active = dados["is_active"]
+                    revoga = revoga or not alvo.is_active
+                alvo.save()
+                if revoga:
+                    revogar_sessoes(alvo)
+        except IntegrityError:
+            # Corrida: outro login com o mesmo e-mail entrou entre a validação e o UPDATE.
+            erros = {"email": ["Já existe um login com este e-mail."]}
+            return Response({"detail": "Corrija os campos destacados.", "campos": erros}, status=400)
 
         return Response(serialize_user_admin(alvo), status=200)
 

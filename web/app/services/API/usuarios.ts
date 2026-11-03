@@ -52,13 +52,17 @@ export const buscarUsuarioLogado = () => requisitar<UsuarioLogado>("/api/auth/me
 
 export const listarUsuarios = () => requisitar<UsuarioAdmin[]>("/api/auth/admin/users/")
 
-// Cadastra um novo PO
 export const criarLogin = (dados: NovoLogin) =>
   requisitar<UsuarioAdmin>("/api/auth/admin/users/", {
     method: "POST",
     body: JSON.stringify(dados),
   })
 
+export const editarLogin = (id: number, dados: Partial<NovoLogin>) =>
+  requisitar<UsuarioAdmin>(`/api/auth/admin/users/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify(dados),
+  })
 
 export const alterarEstadoLogin = (id: number, isActive: boolean) =>
   requisitar<UsuarioAdmin>(`/api/auth/admin/users/${id}/`, {
