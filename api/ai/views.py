@@ -207,7 +207,7 @@ def _eventos_do_stream(usuario, messages, conversa, projeto_id, message,
                         conteudo=message or f"[Anexo: {anexo_nome}]",
                         anexo_nome=anexo_nome,
                     )
-                yield _sse({"type": "meta", "conversa_id": conversa.id, "fontes": fontes})
+                yield _sse({"type": "meta", "conversa_id": conversa.id, "fontes": fontes, "titulo": conversa.titulo})
             partes.append(token)
             yield _sse({"type": "token", "token": token})
     except requests.Timeout:
@@ -603,6 +603,7 @@ class ChatView(APIView):
                     return JsonResponse({
                         "message": resultado["reformatado"],
                         "conversa_id": conversa.id,
+                        "titulo": conversa.titulo,
                         "reformatacao": {
                             "original": resultado["original"],
                             "tipo": resultado["tipo"],
@@ -673,6 +674,7 @@ class ChatView(APIView):
                 return JsonResponse({
                     "message": resposta_curta,
                     "conversa_id": conversa.id,
+                    "titulo": conversa.titulo,
                     "validacao": validacao,
                 })
  
@@ -834,6 +836,7 @@ class ChatView(APIView):
             return JsonResponse({
                 "message": resposta_final,
                 "conversa_id": conversa.id if conversa else None,
+                "titulo": conversa.titulo if conversa else "",
                 "fontes": fontes,
             })
  

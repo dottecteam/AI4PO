@@ -72,6 +72,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
   const inputArquivoRef = useRef<HTMLInputElement>(null)
   const fimMensagensRef = useRef<HTMLDivElement>(null)
   const campoTextoRef = useRef<HTMLTextAreaElement>(null)
+  const [titulo, setTitulo] = useState("")
 
   const [mostrarComandos, setMostrarComandos] = useState(false)
   const selecionarComando = (comando: string) => {
@@ -100,7 +101,8 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       },
     )
       .then((res) => res.json())
-      .then((data: { mensagens: MensagemApi[] }) => {
+      .then((data: { titulo?: string; mensagens: MensagemApi[] }) => {
+        setTitulo(data.titulo ?? "")
         const carregadas: Mensagem[] = data.mensagens.map((m) => ({
           tipo: m.papel === "user" ? "usuario" : "agente",
           texto: m.conteudo,
@@ -192,7 +194,10 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
 
         if (d.type === "meta") {
           setConversaId(d.conversa_id)
+          if (d.titulo) setTitulo(d.titulo)
           fontes = d.fontes ?? []
+        } else if (d.type === "titulo") {
+          setTitulo(d.titulo)
         } else if (d.type === "token") {
           garantirMensagem()
           atualizarUltima((m) => ({ ...m, texto: m.texto + d.token }))
@@ -304,6 +309,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       }
 
       setConversaId(data.conversa_id)
+      if (data.titulo) setTitulo(data.titulo)
       setMensagens((prev) => [
         ...prev,
         {
@@ -376,8 +382,11 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       {/* Header do Chat */}
       <div className="w-full shrink-0 flex justify-between items-center px-4 sm:px-6 lg:px-8 py-4 bg-background border-b border-gray-800/50 z-10">
         <div className="w-auto flex flex-col gap-1 min-w-0">
-          <h1 className="text-white font-semibold text-lg sm:text-2xl lg:text-3xl truncate">
-            Assistente RAG Pro4Tech
+          <h1
+            title={titulo || undefined}
+            className="text-white font-semibold text-lg sm:text-2xl lg:text-3xl truncate"
+          >
+            {titulo || "Assistente RAG Pro4Tech"}
           </h1>
           <span className="flex items-center gap-2 text-secondary text-xs sm:text-sm">
             <div className="bg-green-500 w-2.5 h-2.5 rounded-full shrink-0 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
