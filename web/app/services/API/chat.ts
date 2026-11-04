@@ -62,3 +62,18 @@ export async function exportarConversaPDF(id: number) {
   a.click()
   URL.revokeObjectURL(url)
 }
+
+export async function excluirConversa(id: number) {
+  const csrfToken =
+    document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("csrftoken="))
+      ?.split("=")[1] ?? ""
+
+  const res = await fetch(`http://localhost:8000/api/conversas/${id}/`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: { "X-CSRFToken": csrfToken },
+  })
+  if (!res.ok) throw new Error("Não foi possível excluir a conversa.")
+}

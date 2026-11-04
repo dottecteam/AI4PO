@@ -3,6 +3,7 @@ from django.db import models
 from pgvector.django import VectorField, HnswIndex
 from projects.models import Projeto, Documento
 from django.conf import settings
+from django.utils import timezone
 
 # Entidade "ChunkDoc" do diagrama: trechos fatiados do documento para a IA
 class ChunkDoc(models.Model):

@@ -9,6 +9,7 @@ import {
   FileText,
   X,
   ArrowDownToLine,
+  Square,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -17,6 +18,7 @@ import CartaoValidacao, {
   type Validacao,
 } from "@/app/components/app/CartaoValidacao"
 import { comandos } from "@/app/constants/commands"
+import { formatarHora } from "@/app/utils/formatarHora"
 
 const extensoes = [".txt", ".md"]
 const tamanho_max = 10 * 1024 * 1024
@@ -38,12 +40,17 @@ type Mensagem = {
   anexo?: string
   validacao?: Validacao
   fontes?: Fonte[]
+  criado_em?: string
+  interrompido?: boolean
 }
 
 type MensagemApi = {
   papel: "user" | "assistant"
   conteudo: string
   anexo_nome: string
+  criado_em?: string
+  fontes?: Fonte[]
+  validacao?: Validacao | null
 }
 
 function getCookie(name: string) {
@@ -65,6 +72,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
   const inputArquivoRef = useRef<HTMLInputElement>(null)
   const fimMensagensRef = useRef<HTMLDivElement>(null)
   const campoTextoRef = useRef<HTMLTextAreaElement>(null)
+  const [titulo, setTitulo] = useState("")
 
   const [mostrarComandos, setMostrarComandos] = useState(false)
   const selecionarComando = (comando: string) => {
@@ -93,11 +101,15 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       },
     )
       .then((res) => res.json())
-      .then((data: { mensagens: MensagemApi[] }) => {
+      .then((data: { titulo?: string; mensagens: MensagemApi[] }) => {
+        setTitulo(data.titulo ?? "")
         const carregadas: Mensagem[] = data.mensagens.map((m) => ({
           tipo: m.papel === "user" ? "usuario" : "agente",
           texto: m.conteudo,
           anexo: m.anexo_nome || undefined,
+          criado_em: m.criado_em,
+          fontes: m.fontes?.length ? m.fontes : undefined,
+          validacao: m.validacao ?? undefined,
         }))
         setMensagens(carregadas)
       })
@@ -105,7 +117,9 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
   }, [conversaIdInicial])
 
   useEffect(() => {
-    fimMensagensRef.current?.scrollIntoView({ behavior: "smooth" })
+    fimMensagensRef.current?.scrollIntoView({
+      behavior: carregando ? "auto" : "smooth",
+    })
   }, [mensagens, carregando])
 
   const abrirSeletorDeArquivo = () => {
@@ -135,6 +149,71 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     setAnexos((prev) => prev.filter((_, i) => i !== index))
   }
 
+  const abortRef = useRef<AbortController | null>(null)
+
+  const lerStream = async (response: Response) => {
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ""
+    let criada = false
+    let fontes: Fonte[] = []
+
+    const atualizarUltima = (fn: (m: Mensagem) => Mensagem) =>
+      setMensagens((prev) => {
+        const copia = [...prev]
+        copia[copia.length - 1] = fn(copia[copia.length - 1])
+        return copia
+      })
+
+    // o balão do agente só nasce no 1º token; até lá aparece o "Pensando..."
+    const garantirMensagem = () => {
+      if (criada) return
+      criada = true
+      setMensagens((prev) => [
+        ...prev,
+        {
+          tipo: "agente",
+          texto: "",
+          fontes,
+          criado_em: new Date().toISOString(),
+        },
+      ])
+    }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const eventos = buffer.split("\n\n")
+      buffer = eventos.pop() ?? ""
+
+      for (const ev of eventos) {
+        if (!ev.startsWith("data: ")) continue
+        const d = JSON.parse(ev.slice(6))
+
+        if (d.type === "meta") {
+          setConversaId(d.conversa_id)
+          if (d.titulo) setTitulo(d.titulo)
+          fontes = d.fontes ?? []
+        } else if (d.type === "titulo") {
+          setTitulo(d.titulo)
+        } else if (d.type === "token") {
+          garantirMensagem()
+          atualizarUltima((m) => ({ ...m, texto: m.texto + d.token }))
+        } else if (d.type === "replace") {
+          garantirMensagem()
+          atualizarUltima((m) => ({ ...m, texto: d.texto, fontes: [] }))
+        } else if (d.type === "done") {
+          setCarregando(false) // o título ainda pode estar sendo gerado no servidor
+        } else if (d.type === "error") {
+          throw new Error(d.detail)
+        }
+        // d.type === "titulo": se a sidebar tiver como atualizar, use d.titulo aqui
+      }
+    }
+  }
+
   const enviarMensagem = async () => {
     if ((!mensagem.trim() && anexos.length === 0) || carregando) return
 
@@ -153,7 +232,12 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       if (arquivoParaEnvio) {
         setMensagens((prev) => [
           ...prev,
-          { tipo: "usuario", texto: "", anexo: arquivoParaEnvio.name },
+          {
+            tipo: "usuario",
+            texto: "",
+            anexo: arquivoParaEnvio.name,
+            criado_em: new Date().toISOString(),
+          },
         ])
       }
       return
@@ -165,6 +249,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
         tipo: "usuario",
         texto: mensagemUsuario,
         anexo: arquivoParaEnvio?.name,
+        criado_em: new Date().toISOString(),
       },
     ])
 
@@ -174,6 +259,9 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     try {
       let response
       const csrfToken = getCookie("csrftoken") ?? ""
+
+      const controller = new AbortController()
+      abortRef.current = controller
 
       if (arquivoParaEnvio) {
         const formData = new FormData()
@@ -186,6 +274,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           credentials: "include",
           headers: { "X-CSRFToken": csrfToken }, // sem Content-Type: o navegador define o boundary
           body: formData,
+          signal: controller.signal,
         })
       } else {
         response = await fetch("http://localhost:8000/api/chat/", {
@@ -198,8 +287,15 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           body: JSON.stringify({
             message: mensagemUsuario,
             conversa_id: conversaId,
+            stream: true,
           }),
+          signal: controller.signal,
         })
+      }
+
+      if (response.headers.get("content-type")?.includes("text/event-stream")) {
+        await lerStream(response)
+        return // o finally continua rodando e faz setCarregando(false)
       }
 
       const data = await response.json()
@@ -213,6 +309,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       }
 
       setConversaId(data.conversa_id)
+      if (data.titulo) setTitulo(data.titulo)
       setMensagens((prev) => [
         ...prev,
         {
@@ -220,9 +317,18 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           texto: data.message,
           fontes: data.fontes ?? [], // origem dos trechos usados na resposta
           validacao: data.validacao ?? undefined, // cartão da validação
+          criado_em: data.criado_em ?? new Date().toISOString(),
         },
       ])
     } catch (error) {
+      if ((error as Error).name === "AbortError") {
+        setMensagens((prev) => {
+          const ultima = prev[prev.length - 1]
+          if (ultima?.tipo !== "agente") return prev // cancelou antes do 1º token
+          return [...prev.slice(0, -1), { ...ultima, interrompido: true }]
+        })
+        return
+      }
       console.error("Erro:", error)
       setMensagens((prev) => [
         ...prev,
@@ -243,6 +349,11 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       event.preventDefault()
       enviarMensagem()
     }
+
+    if (event.key === "Escape" && carregando) {
+      pararGeracao()
+      return
+    }
   }
 
   const exportarConversa = async () => {
@@ -258,13 +369,24 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     }
   }
 
+  const pararGeracao = () => {
+    abortRef.current?.abort()
+  }
+
+  useEffect(() => {
+    return () => abortRef.current?.abort()
+  }, [])
+
   return (
     <div className="w-full h-full flex flex-col flex-1 bg-background">
       {/* Header do Chat */}
       <div className="w-full shrink-0 flex justify-between items-center px-4 sm:px-6 lg:px-8 py-4 bg-background border-b border-gray-800/50 z-10">
         <div className="w-auto flex flex-col gap-1 min-w-0">
-          <h1 className="text-white font-semibold text-lg sm:text-2xl lg:text-3xl truncate">
-            Assistente RAG Pro4Tech
+          <h1
+            title={titulo || undefined}
+            className="text-white font-semibold text-lg sm:text-2xl lg:text-3xl truncate"
+          >
+            {titulo || "Assistente RAG Pro4Tech"}
           </h1>
           <span className="flex items-center gap-2 text-secondary text-xs sm:text-sm">
             <div className="bg-green-500 w-2.5 h-2.5 rounded-full shrink-0 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
@@ -371,10 +493,27 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
                   </ul>
                 </details>
               )}
+
+              {msg.interrompido && (
+                <span className="block mt-2 text-xs italic opacity-60">
+                  Resposta interrompida
+                </span>
+              )}
+
+              {msg.criado_em && (
+                <div
+                  className={`mt-1 text-[11px] opacity-60 ${
+                    msg.tipo === "usuario" ? "text-right" : "text-left"
+                  }`}
+                  suppressHydrationWarning
+                >
+                  {formatarHora(msg.criado_em)}
+                </div>
+              )}
             </div>
           </div>
         ))}
-        {carregando && (
+        {carregando && mensagens[mensagens.length - 1]?.tipo !== "agente" && (
           <div className="flex justify-start">
             <div className="bg-(--surface-elevated) text-secondary rounded-2xl rounded-tl-sm px-5 py-3 text-sm animate-pulse border border-gray-800/50">
               Pensando...
@@ -477,14 +616,26 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
               className="block w-full min-h-12 md:min-h-14 max-h-40 resize-none overflow-y-auto scrollbar-input bg-(--surface-elevated) outline-none rounded-xl px-4 py-3 md:py-4 text-sm sm:text-base text-white focus:ring-2 focus:ring-primary border border-gray-700/50 transition duration-200"
             />
           </div>
-          <button
-            type="button"
-            onClick={enviarMensagem}
-            disabled={carregando || (!mensagem.trim() && anexos.length === 0)}
-            className="w-12 h-12 md:w-14 md:h-14 bg-primary rounded-xl flex items-center justify-center hover:bg-primary-dark transition-colors duration-200 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer"
-          >
-            <Send size={20} className="text-white" />
-          </button>
+          {carregando ? (
+            <button
+              type="button"
+              onClick={pararGeracao}
+              aria-label="Parar geração"
+              title="Parar geração"
+              className="w-12 h-12 md:w-14 md:h-14 bg-red-600 rounded-xl flex items-center justify-center hover:bg-red-700 transition-colors duration-200 shrink-0 shadow-md cursor-pointer"
+            >
+              <Square size={18} className="text-white" fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={enviarMensagem}
+              disabled={!mensagem.trim() && anexos.length === 0}
+              className="w-12 h-12 md:w-14 md:h-14 bg-primary rounded-xl flex items-center justify-center hover:bg-primary-dark transition-colors duration-200 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer"
+            >
+              <Send size={20} className="text-white" />
+            </button>
+          )}
         </div>
       </div>
     </div>

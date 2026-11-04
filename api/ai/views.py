@@ -15,6 +15,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.core.serializers.json import DjangoJSONEncoder
 
 from ai import similarity
 from ai.graphrag import buscar_no_grafo
@@ -48,6 +49,8 @@ from .reformatar import (
 )
 
 from .reformatar import TIPOS_VALIDOS
+
+from django.http import Http404, JsonResponse, StreamingHttpResponse
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +150,104 @@ def _chamar_ollama(messages, com_tools=False):
         )
     return mensagem
 
+def _sse(obj):
+    return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
+
+def _json_default(o):
+    try:
+        return float(o)  # Decimal, numpy.float32 etc.
+    except (TypeError, ValueError):
+        return str(o)
+
+def _json_seguro(obj):
+    return json.loads(json.dumps(obj, default=_json_default))
+
+def _stream_ollama(messages):
+    """Mesma chamada de _chamar_ollama, mas devolvendo os pedaços de texto conforme chegam."""
+    payload = {
+        "model": MODEL,
+        "messages": messages,
+        "stream": True,
+        "options": {"num_ctx": NUM_CTX, "temperature": 0.1},
+    }
+    with _http.post(
+        f"{OLLAMA_URL}/api/chat", json=payload, timeout=OLLAMA_TIMEOUT, stream=True
+    ) as resposta:
+        resposta.raise_for_status()
+        for linha in resposta.iter_lines():
+            if not linha:
+                continue
+            dados = json.loads(linha)
+            token = dados.get("message", {}).get("content", "")
+            if token:
+                yield token
+            if dados.get("done"):
+                break
+
+
+def _eventos_do_stream(usuario, messages, conversa, projeto_id, message,
+                       anexo_nome, nova_conversa, fontes):
+    partes = []
+    erro = None
+    try:
+        for token in _stream_ollama(messages):
+            if not partes:
+                # 1º token: só agora a conversa nova é criada, então uma falha do Ollama
+                # antes disso continua não deixando conversa vazia na sidebar
+                with transaction.atomic():
+                    if conversa is None:
+                        conversa = Conversa.objects.create(
+                            usuario_po=usuario,
+                            projeto_id=projeto_id,
+                            titulo=(message[:60] or anexo_nome or "Nova conversa"),
+                        )
+                    MensagemChat.objects.create(
+                        conversa=conversa,
+                        papel="user",
+                        conteudo=message or f"[Anexo: {anexo_nome}]",
+                        anexo_nome=anexo_nome,
+                    )
+                yield _sse({"type": "meta", "conversa_id": conversa.id, "fontes": fontes, "titulo": conversa.titulo})
+            partes.append(token)
+            yield _sse({"type": "token", "token": token})
+    except requests.Timeout:
+        erro = "O modelo demorou demais para responder. Tente novamente."
+    except requests.ConnectionError:
+        erro = "Serviço de IA indisponível no momento."
+    except Exception:
+        logger.exception("Erro no stream do chat")
+        erro = "Erro interno no servidor."
+    finally:
+        texto = "".join(partes).strip()
+        if conversa and texto and not _json_vazado(texto):
+            MensagemChat.objects.create(
+                conversa=conversa,
+                papel="assistant",
+                conteudo=texto,
+                metadata={"fontes": _json_seguro(fontes)} if fontes else None,
+            )
+
+    # daqui pra baixo só roda se o stream terminou (não em cancelamento)
+    texto = "".join(partes).strip()
+    if erro:
+        yield _sse({"type": "error", "detail": erro})
+        return
+    if not texto or _json_vazado(texto):
+        logger.warning("Stream sem resposta aproveitável: %r", texto[:200])
+        yield _sse({"type": "replace", "texto": MSG_VAZIA if not texto else MSG_FALLBACK})
+        yield _sse({"type": "done"})
+        return
+
+    yield _sse({"type": "done"})
+
+    # título e resumo depois do "done", para o front já liberar o campo de texto
+    if nova_conversa and message and _aplicar_titulo_gerado(conversa, message, texto):
+        yield _sse({"type": "titulo", "titulo": conversa.titulo})
+        transaction.on_commit(
+            lambda cid=conversa.id: threading.Thread(
+                target=atualizar_resumo, args=(cid,), daemon=True
+            ).start()
+        )
 
 def _normalizar_args(args):
     """O Ollama normalmente devolve dict, mas alguns modelos mandam string JSON."""
@@ -413,6 +514,9 @@ class ChatView(APIView):
             conversa_id = request.data.get("conversa_id")
             nova_conversa = not conversa_id  # só gera título na primeira troca
             arquivo = request.FILES.get("arquivo")
+
+            nova_conversa = not conversa_id
+            fontes = []
  
             documento_texto = ""
             anexo_nome = ""
@@ -499,6 +603,7 @@ class ChatView(APIView):
                     return JsonResponse({
                         "message": resultado["reformatado"],
                         "conversa_id": conversa.id,
+                        "titulo": conversa.titulo,
                         "reformatacao": {
                             "original": resultado["original"],
                             "tipo": resultado["tipo"],
@@ -539,10 +644,9 @@ class ChatView(APIView):
                 else:
                     resposta_md = para_markdown(validacao)
                     resposta_curta = resumo_curto(validacao)
- 
+
                 with transaction.atomic():
                     if conversa is None:
-                        # conversa nova: criada já com o título da validação
                         conversa = Conversa.objects.create(
                             usuario_po=request.user,
                             projeto_id=projeto_id,
@@ -550,7 +654,7 @@ class ChatView(APIView):
                         )
                     elif not conversa.mensagens.exists():
                         conversa.titulo = "Validação de especificação"
- 
+
                     MensagemChat.objects.bulk_create([
                         MensagemChat(
                             conversa=conversa,
@@ -558,13 +662,19 @@ class ChatView(APIView):
                             conteudo=message or f"[Anexo: {anexo_nome}]",
                             anexo_nome=anexo_nome,
                         ),
-                        MensagemChat(conversa=conversa, papel="assistant", conteudo=resposta_md),
+                        MensagemChat(
+                            conversa=conversa,
+                            papel="assistant",
+                            conteudo=resposta_md,
+                            metadata={"validacao": _json_seguro(validacao)} if validacao else None,
+                        ),
                     ])
                     conversa.save()
- 
+
                 return JsonResponse({
                     "message": resposta_curta,
                     "conversa_id": conversa.id,
+                    "titulo": conversa.titulo,
                     "validacao": validacao,
                 })
  
@@ -617,6 +727,19 @@ class ChatView(APIView):
                 )
 
             messages = [system_msg, *historico, {"role": "user", "content": conteudo_usuario}]
+
+            # Streaming: só para conversa normal (anexo usa ferramentas e continua no fluxo abaixo)
+            if request.data.get("stream") in (True, "true", "1") and not documento_texto:
+                resposta_stream = StreamingHttpResponse(
+                    _eventos_do_stream(
+                        request.user, messages, conversa, projeto_id, message,
+                        anexo_nome, nova_conversa, fontes,
+                    ),
+                    content_type="text/event-stream",
+                )
+                resposta_stream["Cache-Control"] = "no-cache"
+                resposta_stream["X-Accel-Buffering"] = "no"
+                return resposta_stream
  
             # Ferramentas só entram no caso de documento ANEXADO (analisar_documento_anexado).
             # Em pergunta comum o contexto já foi injetado acima, entao nao se passa tools
@@ -695,7 +818,7 @@ class ChatView(APIView):
                             conteudo=message or f"[Anexo: {anexo_nome}]",
                             anexo_nome=anexo_nome,
                         ),
-                        MensagemChat(conversa=conversa, papel="assistant", conteudo=resposta_final),
+                        MensagemChat(conversa=conversa, papel="assistant", conteudo=resposta_final, metadata={"fontes": _json_seguro(fontes)} if fontes else None,),
                     ])
  
             # na primeira troca, pede ao Ollama um título curto.
@@ -713,6 +836,7 @@ class ChatView(APIView):
             return JsonResponse({
                 "message": resposta_final,
                 "conversa_id": conversa.id if conversa else None,
+                "titulo": conversa.titulo if conversa else "",
                 "fontes": fontes,
             })
  
