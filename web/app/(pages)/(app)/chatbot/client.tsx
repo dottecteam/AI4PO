@@ -109,7 +109,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
   }, [conversaIdInicial])
 
   useEffect(() => {
-    fimMensagensRef.current?.scrollIntoView({ behavior: "smooth" })
+    fimMensagensRef.current?.scrollIntoView({ behavior: carregando ? "auto" : "smooth" })
   }, [mensagens, carregando])
 
   const abrirSeletorDeArquivo = () => {
@@ -137,6 +137,63 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
 
   const removerAnexo = (index: number) => {
     setAnexos((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const abortRef = useRef<AbortController | null>(null)
+
+  const lerStream = async (response: Response) => {
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ""
+    let criada = false
+    let fontes: Fonte[] = []
+
+    const atualizarUltima = (fn: (m: Mensagem) => Mensagem) =>
+      setMensagens((prev) => {
+        const copia = [...prev]
+        copia[copia.length - 1] = fn(copia[copia.length - 1])
+        return copia
+      })
+
+    // o balão do agente só nasce no 1º token; até lá aparece o "Pensando..."
+    const garantirMensagem = () => {
+      if (criada) return
+      criada = true
+      setMensagens((prev) => [
+        ...prev,
+        { tipo: "agente", texto: "", fontes, criado_em: new Date().toISOString() },
+      ])
+    }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const eventos = buffer.split("\n\n")
+      buffer = eventos.pop() ?? ""
+
+      for (const ev of eventos) {
+        if (!ev.startsWith("data: ")) continue
+        const d = JSON.parse(ev.slice(6))
+
+        if (d.type === "meta") {
+          setConversaId(d.conversa_id)
+          fontes = d.fontes ?? []
+        } else if (d.type === "token") {
+          garantirMensagem()
+          atualizarUltima((m) => ({ ...m, texto: m.texto + d.token }))
+        } else if (d.type === "replace") {
+          garantirMensagem()
+          atualizarUltima((m) => ({ ...m, texto: d.texto, fontes: [] }))
+        } else if (d.type === "done") {
+          setCarregando(false) // o título ainda pode estar sendo gerado no servidor
+        } else if (d.type === "error") {
+          throw new Error(d.detail)
+        }
+        // d.type === "titulo": se a sidebar tiver como atualizar, use d.titulo aqui
+      }
+    }
   }
 
   const enviarMensagem = async () => {
@@ -181,6 +238,9 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     setMensagem("")
     setCarregando(true)
 
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
       let response
       const csrfToken = getCookie("csrftoken") ?? ""
@@ -208,8 +268,15 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           body: JSON.stringify({
             message: mensagemUsuario,
             conversa_id: conversaId,
+            stream: true,
           }),
+          signal: controller.signal,
         })
+      }
+
+      if (response.headers.get("content-type")?.includes("text/event-stream")) {
+        await lerStream(response)
+        return // o finally continua rodando e faz setCarregando(false)
       }
 
       const data = await response.json()
@@ -234,6 +301,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
         },
       ])
     } catch (error) {
+      if ((error as Error).name === "AbortError") return
       console.error("Erro:", error)
       setMensagens((prev) => [
         ...prev,
@@ -396,7 +464,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
             </div>
           </div>
         ))}
-        {carregando && (
+        {carregando && mensagens[mensagens.length - 1]?.tipo !== "agente" && (
           <div className="flex justify-start">
             <div className="bg-(--surface-elevated) text-secondary rounded-2xl rounded-tl-sm px-5 py-3 text-sm animate-pulse border border-gray-800/50">
               Pensando...
