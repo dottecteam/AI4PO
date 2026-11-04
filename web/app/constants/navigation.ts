@@ -18,7 +18,6 @@ export const PAGINAS_PRINCIPAIS = [
 ]
 
 export const PAGINAS_CONFIG = [
-  { icone: Settings, label: "Configurações", rota: "/configuracoes" },
   { icone: CircleUserRound, label: "Meu Perfil", rota: "/perfil" },
 ]
 
