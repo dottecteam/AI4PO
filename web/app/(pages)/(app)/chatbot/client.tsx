@@ -9,6 +9,7 @@ import {
   FileText,
   X,
   ArrowDownToLine,
+  Square,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -40,6 +41,7 @@ type Mensagem = {
   validacao?: Validacao
   fontes?: Fonte[]
   criado_em?: string
+  interrompido?: boolean
 }
 
 type MensagemApi = {
@@ -109,7 +111,9 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
   }, [conversaIdInicial])
 
   useEffect(() => {
-    fimMensagensRef.current?.scrollIntoView({ behavior: carregando ? "auto" : "smooth" })
+    fimMensagensRef.current?.scrollIntoView({
+      behavior: carregando ? "auto" : "smooth",
+    })
   }, [mensagens, carregando])
 
   const abrirSeletorDeArquivo = () => {
@@ -161,7 +165,12 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       criada = true
       setMensagens((prev) => [
         ...prev,
-        { tipo: "agente", texto: "", fontes, criado_em: new Date().toISOString() },
+        {
+          tipo: "agente",
+          texto: "",
+          fontes,
+          criado_em: new Date().toISOString(),
+        },
       ])
     }
 
@@ -212,7 +221,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     // (nenhuma mensagem salva no histórico nesse caso)
     if (!mensagemUsuario.trim()) {
       if (arquivoParaEnvio) {
-       setMensagens((prev) => [
+        setMensagens((prev) => [
           ...prev,
           {
             tipo: "usuario",
@@ -238,12 +247,12 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     setMensagem("")
     setCarregando(true)
 
-    const controller = new AbortController()
-    abortRef.current = controller
-
     try {
       let response
       const csrfToken = getCookie("csrftoken") ?? ""
+
+      const controller = new AbortController()
+      abortRef.current = controller
 
       if (arquivoParaEnvio) {
         const formData = new FormData()
@@ -256,6 +265,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           credentials: "include",
           headers: { "X-CSRFToken": csrfToken }, // sem Content-Type: o navegador define o boundary
           body: formData,
+          signal: controller.signal,
         })
       } else {
         response = await fetch("http://localhost:8000/api/chat/", {
@@ -301,7 +311,14 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
         },
       ])
     } catch (error) {
-      if ((error as Error).name === "AbortError") return
+      if ((error as Error).name === "AbortError") {
+        setMensagens((prev) => {
+          const ultima = prev[prev.length - 1]
+          if (ultima?.tipo !== "agente") return prev // cancelou antes do 1º token
+          return [...prev.slice(0, -1), { ...ultima, interrompido: true }]
+        })
+        return
+      }
       console.error("Erro:", error)
       setMensagens((prev) => [
         ...prev,
@@ -322,6 +339,11 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       event.preventDefault()
       enviarMensagem()
     }
+
+    if (event.key === "Escape" && carregando) {
+      pararGeracao()
+      return
+    }
   }
 
   const exportarConversa = async () => {
@@ -336,6 +358,14 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       setExportando(false)
     }
   }
+
+  const pararGeracao = () => {
+    abortRef.current?.abort()
+  }
+
+  useEffect(() => {
+    return () => abortRef.current?.abort()
+  }, [])
 
   return (
     <div className="w-full h-full flex flex-col flex-1 bg-background">
@@ -451,7 +481,13 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
                 </details>
               )}
 
-             {msg.criado_em && (
+              {msg.interrompido && (
+                <span className="block mt-2 text-xs italic opacity-60">
+                  Resposta interrompida
+                </span>
+              )}
+
+              {msg.criado_em && (
                 <div
                   className={`mt-1 text-[11px] opacity-60 ${
                     msg.tipo === "usuario" ? "text-right" : "text-left"
@@ -567,14 +603,26 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
               className="block w-full min-h-12 md:min-h-14 max-h-40 resize-none overflow-y-auto scrollbar-input bg-(--surface-elevated) outline-none rounded-xl px-4 py-3 md:py-4 text-sm sm:text-base text-white focus:ring-2 focus:ring-primary border border-gray-700/50 transition duration-200"
             />
           </div>
-          <button
-            type="button"
-            onClick={enviarMensagem}
-            disabled={carregando || (!mensagem.trim() && anexos.length === 0)}
-            className="w-12 h-12 md:w-14 md:h-14 bg-primary rounded-xl flex items-center justify-center hover:bg-primary-dark transition-colors duration-200 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer"
-          >
-            <Send size={20} className="text-white" />
-          </button>
+          {carregando ? (
+            <button
+              type="button"
+              onClick={pararGeracao}
+              aria-label="Parar geração"
+              title="Parar geração"
+              className="w-12 h-12 md:w-14 md:h-14 bg-red-600 rounded-xl flex items-center justify-center hover:bg-red-700 transition-colors duration-200 shrink-0 shadow-md cursor-pointer"
+            >
+              <Square size={18} className="text-white" fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={enviarMensagem}
+              disabled={!mensagem.trim() && anexos.length === 0}
+              className="w-12 h-12 md:w-14 md:h-14 bg-primary rounded-xl flex items-center justify-center hover:bg-primary-dark transition-colors duration-200 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer"
+            >
+              <Send size={20} className="text-white" />
+            </button>
+          )}
         </div>
       </div>
     </div>
