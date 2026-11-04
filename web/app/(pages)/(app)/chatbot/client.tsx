@@ -17,6 +17,7 @@ import CartaoValidacao, {
   type Validacao,
 } from "@/app/components/app/CartaoValidacao"
 import { comandos } from "@/app/constants/commands"
+import { formatarHora } from "@/app/utils/formatarHora"
 
 const extensoes = [".txt", ".md"]
 const tamanho_max = 10 * 1024 * 1024
@@ -38,12 +39,14 @@ type Mensagem = {
   anexo?: string
   validacao?: Validacao
   fontes?: Fonte[]
+  criado_em?: string
 }
 
 type MensagemApi = {
   papel: "user" | "assistant"
   conteudo: string
   anexo_nome: string
+  criado_em?: string
 }
 
 function getCookie(name: string) {
@@ -98,6 +101,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           tipo: m.papel === "user" ? "usuario" : "agente",
           texto: m.conteudo,
           anexo: m.anexo_nome || undefined,
+          criado_em: m.criado_em,
         }))
         setMensagens(carregadas)
       })
@@ -151,9 +155,14 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     // (nenhuma mensagem salva no histórico nesse caso)
     if (!mensagemUsuario.trim()) {
       if (arquivoParaEnvio) {
-        setMensagens((prev) => [
+       setMensagens((prev) => [
           ...prev,
-          { tipo: "usuario", texto: "", anexo: arquivoParaEnvio.name },
+          {
+            tipo: "usuario",
+            texto: "",
+            anexo: arquivoParaEnvio.name,
+            criado_em: new Date().toISOString(),
+          },
         ])
       }
       return
@@ -165,6 +174,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
         tipo: "usuario",
         texto: mensagemUsuario,
         anexo: arquivoParaEnvio?.name,
+        criado_em: new Date().toISOString(),
       },
     ])
 
@@ -220,6 +230,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           texto: data.message,
           fontes: data.fontes ?? [], // origem dos trechos usados na resposta
           validacao: data.validacao ?? undefined, // cartão da validação
+          criado_em: data.criado_em ?? new Date().toISOString(),
         },
       ])
     } catch (error) {
@@ -370,6 +381,17 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
                     ))}
                   </ul>
                 </details>
+              )}
+
+             {msg.criado_em && (
+                <div
+                  className={`mt-1 text-[11px] opacity-60 ${
+                    msg.tipo === "usuario" ? "text-right" : "text-left"
+                  }`}
+                  suppressHydrationWarning
+                >
+                  {formatarHora(msg.criado_em)}
+                </div>
               )}
             </div>
           </div>
