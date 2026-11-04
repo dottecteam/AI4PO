@@ -2,6 +2,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework import status
 
 from .models import Conversa
 from .serializers import ConversaDetalheSerializer, ConversaListSerializer
@@ -21,3 +22,11 @@ class ConversaDetalheView(APIView):
     def get(self, request, conversa_id):
         conversa = get_object_or_404(Conversa, pk=conversa_id, usuario_po=request.user)
         return Response(ConversaDetalheSerializer(conversa).data)
+
+class ConversaExcluirView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, conversa_id):
+        conversa = get_object_or_404(Conversa, pk=conversa_id, usuario_po=request.user)
+        conversa.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
