@@ -15,6 +15,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.core.serializers.json import DjangoJSONEncoder
 
 from ai import similarity
 from ai.graphrag import buscar_no_grafo
@@ -152,6 +153,14 @@ def _chamar_ollama(messages, com_tools=False):
 def _sse(obj):
     return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
 
+def _json_default(o):
+    try:
+        return float(o)  # Decimal, numpy.float32 etc.
+    except (TypeError, ValueError):
+        return str(o)
+
+def _json_seguro(obj):
+    return json.loads(json.dumps(obj, default=_json_default))
 
 def _stream_ollama(messages):
     """Mesma chamada de _chamar_ollama, mas devolvendo os pedaços de texto conforme chegam."""
@@ -209,11 +218,14 @@ def _eventos_do_stream(usuario, messages, conversa, projeto_id, message,
         logger.exception("Erro no stream do chat")
         erro = "Erro interno no servidor."
     finally:
-        # roda também se o usuário cancelar (GeneratorExit): guarda o que já foi gerado.
-        # Não pode ter yield aqui dentro.
         texto = "".join(partes).strip()
         if conversa and texto and not _json_vazado(texto):
-            MensagemChat.objects.create(conversa=conversa, papel="assistant", conteudo=texto)
+            MensagemChat.objects.create(
+                conversa=conversa,
+                papel="assistant",
+                conteudo=texto,
+                metadata={"fontes": _json_seguro(fontes)} if fontes else None,
+            )
 
     # daqui pra baixo só roda se o stream terminou (não em cancelamento)
     texto = "".join(partes).strip()
@@ -502,6 +514,9 @@ class ChatView(APIView):
             conversa_id = request.data.get("conversa_id")
             nova_conversa = not conversa_id  # só gera título na primeira troca
             arquivo = request.FILES.get("arquivo")
+
+            nova_conversa = not conversa_id
+            fontes = []
  
             documento_texto = ""
             anexo_nome = ""
@@ -628,10 +643,9 @@ class ChatView(APIView):
                 else:
                     resposta_md = para_markdown(validacao)
                     resposta_curta = resumo_curto(validacao)
- 
+
                 with transaction.atomic():
                     if conversa is None:
-                        # conversa nova: criada já com o título da validação
                         conversa = Conversa.objects.create(
                             usuario_po=request.user,
                             projeto_id=projeto_id,
@@ -639,7 +653,7 @@ class ChatView(APIView):
                         )
                     elif not conversa.mensagens.exists():
                         conversa.titulo = "Validação de especificação"
- 
+
                     MensagemChat.objects.bulk_create([
                         MensagemChat(
                             conversa=conversa,
@@ -647,10 +661,15 @@ class ChatView(APIView):
                             conteudo=message or f"[Anexo: {anexo_nome}]",
                             anexo_nome=anexo_nome,
                         ),
-                        MensagemChat(conversa=conversa, papel="assistant", conteudo=resposta_md),
+                        MensagemChat(
+                            conversa=conversa,
+                            papel="assistant",
+                            conteudo=resposta_md,
+                            metadata={"validacao": _json_seguro(validacao)} if validacao else None,
+                        ),
                     ])
                     conversa.save()
- 
+
                 return JsonResponse({
                     "message": resposta_curta,
                     "conversa_id": conversa.id,
@@ -797,7 +816,7 @@ class ChatView(APIView):
                             conteudo=message or f"[Anexo: {anexo_nome}]",
                             anexo_nome=anexo_nome,
                         ),
-                        MensagemChat(conversa=conversa, papel="assistant", conteudo=resposta_final),
+                        MensagemChat(conversa=conversa, papel="assistant", conteudo=resposta_final, metadata={"fontes": _json_seguro(fontes)} if fontes else None,),
                     ])
  
             # na primeira troca, pede ao Ollama um título curto.

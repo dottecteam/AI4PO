@@ -49,6 +49,8 @@ type MensagemApi = {
   conteudo: string
   anexo_nome: string
   criado_em?: string
+  fontes?: Fonte[]
+  validacao?: Validacao | null
 }
 
 function getCookie(name: string) {
@@ -104,6 +106,8 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           texto: m.conteudo,
           anexo: m.anexo_nome || undefined,
           criado_em: m.criado_em,
+          fontes: m.fontes?.length ? m.fontes : undefined,
+          validacao: m.validacao ?? undefined,
         }))
         setMensagens(carregadas)
       })
