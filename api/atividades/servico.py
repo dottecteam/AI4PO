@@ -7,7 +7,7 @@ from .models import Atividade
 logger = logging.getLogger(__name__)
 
 
-def registrar(usuario, acao, alvo=""):
+def registrar(usuario, acao, alvo="", detalhe=""):
     """Grava uma atividade. Nunca derruba a ação principal se o log falhar."""
     try:
         nome = (
@@ -15,12 +15,13 @@ def registrar(usuario, acao, alvo=""):
             or getattr(usuario, "username", "")
             or str(usuario)
         )
-        with transaction.atomic():  # savepoint: um erro aqui não anula a transação de fora
+        with transaction.atomic():
             Atividade.objects.create(
                 usuario=usuario if getattr(usuario, "pk", None) else None,
                 usuario_nome=nome[:150],
                 acao=acao,
                 alvo=(alvo or "")[:255],
+                detalhe=(detalhe or "")[:255],
             )
     except Exception:
         logger.exception("Falha ao registrar atividade '%s'", acao)

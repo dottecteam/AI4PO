@@ -16,16 +16,18 @@ type Atividade = {
   usuario: string
   texto: string
   alvo: string
+  detalhe?: string
   criado_em: string
 }
 
 const ICONES: Record<string, LucideIcon> = {
-  "adicionou um novo projeto": BookOpen,
-  "editou o projeto": Pencil,
-  "excluiu o projeto": Trash2,
-  "enviou o documento": FileText,
-  "excluiu o documento": Trash2,
-  "excluiu a conversa": MessageSquare,
+  projeto_criado: BookOpen,
+  projeto_editado: Pencil,
+  projeto_excluido: Trash2,
+  documento_enviado: FileText,
+  documento_excluido: Trash2,
+  conversa_excluida: MessageSquare,
+  projeto_renomeado: Pencil,
 }
 function formatarDataCurta(iso: string) {
   const partes = new Intl.DateTimeFormat("pt-BR", {
@@ -52,8 +54,8 @@ export default function AtividadesRecentes() {
   return (
     <section className="rounded-xl bg-[var(--surface-elevated)] p-6 border border-gray-800/40">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold text-white">
-          Atividades Recentes da Fábrica
+        <h2 className="text-xs font-semibold uppercase tracking-wider">
+          Atividades Recentes
         </h2>
 
         <button
@@ -77,7 +79,7 @@ export default function AtividadesRecentes() {
       {itens && itens.length > 0 && (
         <ul className="flex flex-col">
           {itens.map((a, index) => {
-            const Icone = ICONES[a.texto] ?? Activity
+            const Icone = ICONES[a.acao] ?? Activity
             return (
               <li
                 key={a.id}
@@ -105,6 +107,14 @@ export default function AtividadesRecentes() {
                         {" "}
                         {a.alvo}
                       </span>
+                    )}
+                    {a.acao === "projeto_renomeado" && a.detalhe && (
+                      <>
+                        {" para "}
+                        <span className="font-semibold text-orange-500">
+                          {a.detalhe}
+                        </span>
+                      </>
                     )}
                   </p>
                 </div>

@@ -23,9 +23,11 @@ class AtividadesRecentesView(APIView):
         return Response([
             {
                 "id": a.id,
+                "acao": a.acao,
                 "usuario": a.usuario_nome,
                 "texto": ACOES.get(a.acao, a.acao),
                 "alvo": a.alvo,
+                "detalhe": a.detalhe,
                 "criado_em": a.criado_em.isoformat(),
             }
             for a in qs[:limite]

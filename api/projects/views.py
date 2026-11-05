@@ -66,8 +66,13 @@ class ProjetoDataView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProjetoSerializer
 
     def perform_update(self, serializer):
+        titulo_antigo = serializer.instance.titulo  # lê antes do save()
         projeto = serializer.save()
-        registrar(self.request.user, "projeto_editado", projeto.titulo)
+
+        if projeto.titulo != titulo_antigo:
+            registrar(self.request.user, "projeto_renomeado", titulo_antigo, projeto.titulo)
+        else:
+            registrar(self.request.user, "projeto_editado", projeto.titulo)
 
     def perform_destroy(self, instance):
         titulo = instance.titulo  # guarda antes de apagar

@@ -9,6 +9,7 @@ ACOES = {
     "documento_enviado": "enviou o documento",
     "documento_excluido": "excluiu o documento",
     "conversa_excluida": "excluiu a conversa",
+    "projeto_renomeado": "renomeou o projeto",
 }
 
 
@@ -20,6 +21,7 @@ class Atividade(models.Model):
     usuario_nome = models.CharField(max_length=150)
     acao = models.CharField(max_length=40, choices=[(k, k) for k in ACOES])
     alvo = models.CharField(max_length=255, blank=True)
+    detalhe = models.CharField(max_length=255, blank=True)
     criado_em = models.DateTimeField(default=timezone.now, db_index=True)
 
     class Meta:
