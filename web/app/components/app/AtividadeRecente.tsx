@@ -43,7 +43,7 @@ export default function AtividadesRecentes() {
   const [itens, setItens] = useState<Atividade[] | null>(null)
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/atividades/recentes/?limite=5", {
+    fetch("http://localhost:8000/api/atividades/recentes/?limite=8", {
       credentials: "include",
     })
       .then((res) => (res.ok ? res.json() : []))
@@ -85,7 +85,7 @@ export default function AtividadesRecentes() {
                 key={a.id}
                 className={`flex items-center gap-4 py-3.5 ${
                   index !== itens.length - 1
-                    ? "border-b border-orange-200/70"
+                    ? "border-b border-[var(--secondary-muted)]"
                     : ""
                 }`}
               >
