@@ -2,7 +2,7 @@ export type EstadoDocumento = "pendente" | "processando" | "processado" | "erro"
 
 export interface Documento {
   id: number
-  projetoId: number
+  projeto: number
   nome: string
   tipo: string
   data: string

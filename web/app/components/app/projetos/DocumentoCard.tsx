@@ -52,15 +52,22 @@ export default function DocumentoCard({
     }
   }, [])
 
-  function excluirDocumento() {
-    console.log("Excluir documento", documento.nome)
+  async function excluirDocumento() {
+    try {
+      await api.delete(
+        `/api/projects/${documento.projeto}/documents/${documento.id}/`,
+      )
+      window.location.reload()
+    } catch (erro) {
+      console.error("Falha ao excluir documento", documento.nome)
+    }
   }
 
   async function reprocessarDocumento() {
     setReprocessando(true)
     try {
       await api.post(
-        `/api/projects/${documento.projetoId}/documents/${documento.id}/reprocess/`,
+        `/api/projects/${documento.projeto}/documents/${documento.id}/reprocess/`,
         {},
       )
       onReprocessado?.()
