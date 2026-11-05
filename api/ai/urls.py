@@ -7,6 +7,7 @@ from .views_export import ConversaExportarPDFView
 from .views_validar import ValidarEspecificacaoView
 from .views_reformatar import ReformatarRequisitoView
 from .views_grafo import GrafoStatusView, GrafoDadosView, GrafoPosicoesView
+from .views_dashboard import ResumoDashboardView
 
 urlpatterns = [
     path("chat/", ChatView.as_view(), name="chat"),
@@ -21,4 +22,5 @@ urlpatterns = [
     path("grafo/status/<int:documento_id>/", GrafoStatusView.as_view(), name="grafo-status"),
     path("grafo/dados/", GrafoDadosView.as_view(), name="grafo-dados"),
     path("grafo/posicoes/", GrafoPosicoesView.as_view(), name="grafo-posicoes"),
+    path("dashboard/resumo/", ResumoDashboardView.as_view(), name="dashboard-resumo"),
 ]
