@@ -241,3 +241,38 @@ class DocumentoReprocessarView(APIView):
             ).data,
             status=status.HTTP_200_OK,
         )
+
+class DocumentoDeleteView(APIView):
+    """
+    Endpoint para excluir documentos de um projeto.
+    """
+
+    def delete(self, request, project_id, document_id):
+        projeto = get_object_or_404(
+            Projeto,
+            pk=project_id,
+        )
+
+        documento = get_object_or_404(
+            Documento,
+            pk=document_id,
+            projeto=projeto,
+        )
+
+        nome_doc = (
+            getattr(documento, "nome", "")
+            or os.path.basename(documento.arquivo.name)
+        )
+
+        documento.delete()
+
+        registrar(
+            request.user,
+            "documento_excluido",
+            nome_doc,
+        )
+
+        return Response(
+            {"message": "Documento excluído com sucesso."},
+            status=status.HTTP_200_OK,
+        )
