@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404
+import os
 
 from rest_framework import generics, status
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -16,6 +17,7 @@ from .models import Projeto, Documento
 from .serializers import ProjetoSerializer, DocumentoUploadSerializer
 from .upload_handlers import DocumentUploadSizeHandler
 from .validators import MAX_UPLOAD_SIZE_BYTES, UPLOAD_SIZE_MESSAGE
+from atividades.servico import registrar
 
 import time
 
@@ -54,10 +56,23 @@ class ProjetoListCreateView(generics.ListCreateAPIView):
     queryset = Projeto.objects.all()
     serializer_class = ProjetoSerializer
 
+    def perform_create(self, serializer):
+        projeto = serializer.save()
+        registrar(self.request.user, "projeto_criado", projeto.titulo)
+
 
 class ProjetoDataView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Projeto.objects.all()
     serializer_class = ProjetoSerializer
+
+    def perform_update(self, serializer):
+        projeto = serializer.save()
+        registrar(self.request.user, "projeto_editado", projeto.titulo)
+
+    def perform_destroy(self, instance):
+        titulo = instance.titulo  # guarda antes de apagar
+        instance.delete()
+        registrar(self.request.user, "projeto_excluido", titulo)
 
 
 # -------------------------
@@ -111,6 +126,9 @@ class DocumentoUploadView(APIView):
         serializer.is_valid(raise_exception=True)
 
         documento = serializer.save()
+
+        nome_doc = getattr(documento, "nome", "") or os.path.basename(documento.arquivo.name)
+        registrar(request.user, "documento_enviado", nome_doc)
 
         executar_indexacao_documento(documento)
 
