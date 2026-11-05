@@ -69,7 +69,7 @@ export default function DashboardCards() {
           key={rotulo}
           className="rounded-xl border border-gray-800/50 bg-(--surface-elevated) p-4 flex flex-col gap-1"
         >
-          <div className="flex items-center justify-between text-(--foreground-muted)">
+          <div className="flex items-center justify-between text-(--primary)">
             <span className="text-xs font-semibold uppercase tracking-wider">
               {rotulo}
             </span>

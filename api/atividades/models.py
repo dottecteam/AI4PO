@@ -17,10 +17,9 @@ class Atividade(models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="atividades",
     )
-    # cópia do nome na hora da ação: o histórico não muda se o usuário for renomeado ou excluído
     usuario_nome = models.CharField(max_length=150)
     acao = models.CharField(max_length=40, choices=[(k, k) for k in ACOES])
-    alvo = models.CharField(max_length=255, blank=True)  # ex.: título do projeto
+    alvo = models.CharField(max_length=255, blank=True)
     criado_em = models.DateTimeField(default=timezone.now, db_index=True)
 
     class Meta:
