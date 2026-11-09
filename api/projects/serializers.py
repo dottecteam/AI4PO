@@ -2,7 +2,7 @@ from pathlib import Path
 
 from rest_framework import serializers
 
-from .models import Projeto, Documento
+from .models import Projeto, Documento, Participacao
 from .validators import validate_document_upload
 
 
@@ -77,3 +77,31 @@ class DocumentoUploadSerializer(serializers.ModelSerializer):
             tipo=Path(filename).suffix.lower().lstrip("."),
             arquivo=arquivo,
         )
+
+class ParticipacaoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Participacao
+        fields = ["id", "funcionario", "projeto", "papel", "criado_em"]
+        read_only_fields = ["id", "criado_em"]
+        validators = []
+
+    def validate(self, data):
+        funcionario = data.get("funcionario", getattr(self.instance, "funcionario", None))
+        projeto = data.get("projeto", getattr(self.instance, "projeto", None))
+        papel = data.get("papel", getattr(self.instance, "papel", None))
+
+        existe = Participacao.objects.filter(
+            funcionario=funcionario,
+            projeto=projeto,
+            papel__iexact=papel,
+        )
+
+        if self.instance:
+            existe = existe.exclude(pk=self.instance.pk)
+
+        if existe.exists():
+            raise serializers.ValidationError(
+                "Este profissional já está registrado neste projeto com este papel."
+            )
+
+        return data

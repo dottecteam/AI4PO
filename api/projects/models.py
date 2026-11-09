@@ -1,6 +1,6 @@
 from django.db import models
 from django.conf import settings
-from users.models import Funcionario
+from users.models import Funcionario, UsuarioPO
 
 # Entidade "Projeto" do diagrama
 class Projeto(models.Model):
@@ -26,7 +26,7 @@ class Projeto(models.Model):
     criado_em = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.nome
+        return self.titulo
 
 ESTADOS_DOCUMENTO = [
     ('pendente', 'Pendente'),
@@ -49,3 +49,35 @@ class Documento(models.Model):
 
     def __str__(self):
         return self.nome
+
+# Entidades "Participacao" e "Papel"
+class Participacao(models.Model):
+    funcionario = models.ForeignKey(
+        Funcionario,
+        on_delete=models.CASCADE,
+        related_name="participacoes",
+    )
+    projeto = models.ForeignKey(
+        "Projeto",
+        on_delete=models.CASCADE,
+        related_name="participacoes",
+    )
+    papel = models.CharField(max_length=100)
+    registrado_por = models.ForeignKey(
+        UsuarioPO,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="participacoes_registradas",
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["funcionario", "projeto", "papel"],
+                name="participacao_unica",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.funcionario} - {self.projeto} ({self.papel})"

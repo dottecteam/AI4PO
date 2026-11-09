@@ -13,8 +13,8 @@ from ai.extraction import (
     FalhaDeDecodificacaoError,
 )
 
-from .models import Projeto, Documento
-from .serializers import ProjetoSerializer, DocumentoUploadSerializer
+from .models import Projeto, Documento, Participacao
+from .serializers import ProjetoSerializer, DocumentoUploadSerializer, ParticipacaoSerializer
 from .upload_handlers import DocumentUploadSizeHandler
 from .validators import MAX_UPLOAD_SIZE_BYTES, UPLOAD_SIZE_MESSAGE
 from atividades.servico import registrar
@@ -276,3 +276,50 @@ class DocumentoDeleteView(APIView):
             {"message": "Documento excluído com sucesso."},
             status=status.HTTP_200_OK,
         )
+
+
+# -------------------------
+# Participacao
+# -------------------------
+class ParticipacaoListCreateView(generics.ListCreateAPIView):
+    serializer_class = ParticipacaoSerializer
+
+    def get_queryset(self):
+        queryset = Participacao.objects.select_related("funcionario", "projeto")
+
+        funcionario = self.request.query_params.get("funcionario")
+        projeto = self.request.query_params.get("projeto")
+
+        if funcionario:
+            queryset = queryset.filter(funcionario_id=funcionario)
+        if projeto:
+            queryset = queryset.filter(projeto_id=projeto)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        participacao = serializer.save(registrado_por=self.request.user)
+        registrar(
+            self.request.user,
+            "participacao_criada",
+            str(participacao),
+        )
+
+class ParticipacaoDataView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Participacao.objects.select_related("funcionario", "projeto")
+    serializer_class = ParticipacaoSerializer
+
+    def perform_update(self, serializer):
+        antiga = str(serializer.instance)
+        participacao = serializer.save()
+        registrar(
+            self.request.user,
+            "participacao_editada",
+            antiga,
+            str(participacao),
+        )
+
+    def perform_destroy(self, instance):
+        descricao = str(instance)
+        instance.delete()
+        registrar(self.request.user, "participacao_excluida", descricao)
