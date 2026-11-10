@@ -136,7 +136,7 @@ class GestaoLoginTests(TestCase):
     def test_id_inexistente_404(self):
         self.assertEqual(self.ca.delete(BASE + "admin/users/9999/", **csrf(self.ca)).status_code, 404)
 
-    def test_logout_limpa_cookies_mesmo_com_login_revogado(self):
+    def test_logout_por_json_limpa_cookies_com_login_revogado(self):
         cpo, _ = logar("po@x.com")
         self.ca.patch(self.url, {"is_active": False}, format="json", **csrf(self.ca))
         self.assertEqual(cpo.get(BASE + "me/").status_code, 401)
@@ -151,7 +151,9 @@ class GestaoLoginTests(TestCase):
         self.assertEqual(emails, ["po@x.com"])
 
     # ---- navegador: login revogado precisa conseguir limpar os cookies ----
-    def test_logout_limpa_cookies_mesmo_com_login_revogado(self):
+    # nome diferente do teste acima: os dois tinham o MESMO nome e o primeiro
+    # nunca chegou a rodar (Python sobrescreve o metodo anterior em silencio).
+    def test_logout_navegador_limpa_cookies_com_login_revogado(self):
         cpo, _ = logar("po@x.com")
         self.ca.patch(self.url, {"is_active": False}, format="json", **csrf(self.ca))
         # o cookie velho dá 401 em qualquer rota autenticada...
