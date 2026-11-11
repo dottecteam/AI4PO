@@ -19,7 +19,7 @@ function lerCookie(nome: string) {
   return par ? decodeURIComponent(par.split("=")[1]) : ""
 }
 
-async function requisitar<T>(caminho: string, init: RequestInit = {}): Promise<T> {
+export async function requisitar<T>(caminho: string, init: RequestInit = {}): Promise<T> {
   const metodo = (init.method ?? "GET").toUpperCase()
   const headers = new Headers(init.headers)
   if (init.body) headers.set("Content-Type", "application/json")
