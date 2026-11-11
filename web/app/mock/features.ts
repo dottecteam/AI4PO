@@ -17,6 +17,7 @@ export const features: Feature[] = [
             "Informar indisponibilidade do serviço",
         ],
         createdAt: "2026-02-12T11:00:00.000Z",
+        totalPbis: 2,
     },
     {
         id: 2,
@@ -32,6 +33,7 @@ export const features: Feature[] = [
             "Tratar solicitações sem histórico registrado",
         ],
         createdAt: "2026-02-14T16:40:00.000Z",
+        totalPbis: 1,
     },
     {
         id: 3,
@@ -47,6 +49,7 @@ export const features: Feature[] = [
             "Aplicar a preferência a partir da próxima notificação gerada",
         ],
         createdAt: "2026-02-19T09:50:00.000Z",
+        totalPbis: 1,
     },
     {
         id: 4,
@@ -62,5 +65,6 @@ export const features: Feature[] = [
             "Exibir aviso quando um título de PBI não iniciar com verbo no infinitivo",
         ],
         createdAt: "2026-03-07T10:30:00.000Z",
+        totalPbis: 2,
     },
 ];

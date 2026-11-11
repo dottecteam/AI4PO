@@ -5,6 +5,7 @@ import cytoscape from "cytoscape"
 import {
   ArrowLeft,
   ArrowRight,
+  LayoutGrid,
   Maximize2,
   Minimize2,
   Minus,
@@ -12,6 +13,7 @@ import {
   Scan,
   Search,
   Shuffle,
+  Undo2,
   X,
 } from "lucide-react"
 
@@ -39,6 +41,8 @@ const LARANJA = "#EF7541"
 const COR_NEUTRA = "#64748b"
 // Passo da grade (px) para encaixar nós ao arrastar, facilitando alinhar.
 const GRADE = 20
+// Espaço entre blocos de comunidades no "Organizar por comunidade".
+const FOLGA_BLOCOS = 90
 
 // Paleta mais suave que a original; o laranja da marca continua sendo a primeira cor.
 const PALETA = [
@@ -58,6 +62,16 @@ const media = (v: number[]) => v.reduce((s, x) => s + x, 0) / v.length
 
 const normalizar = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+
+// Foto das posições atuais (usada pelo "Desfazer").
+function tirarFoto(cy: cytoscape.Core): Map<string, Pos> {
+  const m = new Map<string, Pos>()
+  cy.nodes().forEach((n) => {
+    const p = n.position()
+    m.set(n.id(), { x: p.x, y: p.y })
+  })
+  return m
+}
 
 // Nós que ainda não têm posição salva nascem perto dos vizinhos que já têm,
 // em vez de empilhar tudo em (0,0). Retorna null se nada foi salvo ainda.
@@ -170,11 +184,11 @@ const ESTILO: any[] = [
   {
     selector: "edge",
     style: {
-      width: "mapData(confianca, 0, 1, 0.8, 2.2)",
-      "line-color": "#334155",
-      "line-opacity": 0.16,
+      width: "mapData(confianca, 0, 1, 1.2, 3.6)",
+      "line-color": "#5b7bb0",
+      "line-opacity": 0.45,
       "target-arrow-shape": "triangle",
-      "target-arrow-color": "#334155",
+      "target-arrow-color": "#5b7bb0",
       "arrow-scale": 0.6,
       "curve-style": "bezier",
       "overlay-opacity": 0,
@@ -213,6 +227,9 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
   const selRef = useRef<string | null>(null)
   const limiarRef = useRef(-1)
   const salvarRef = useRef<() => void>(() => {})
+  // Última foto das posições antes de uma mudança (arrastar / organizar) -> "Desfazer".
+  const fotoRef = useRef<Map<string, Pos> | null>(null)
+  const desfazerRef = useRef<() => void>(() => {})
 
   const [dados, setDados] = useState<Dados | null>(null)
   const [erro, setErro] = useState("")
@@ -229,8 +246,11 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
   const [focoLocal, setFocoLocal] = useState(false)
   const [fixos, setFixos] = useState<Set<string>>(new Set())
   const [mostrarCruzadas, setMostrarCruzadas] = useState(false)
-  const [moverComunidade, setMoverComunidade] = useState(false)
-  const moverComunidadeRef = useRef(false)
+  // Ligado por padrão: arrastar um nó leva a comunidade inteira (Alt = só aquele nó).
+  const [moverComunidade, setMoverComunidade] = useState(true)
+  const [podeDesfazer, setPodeDesfazer] = useState(false)
+  const [organizando, setOrganizando] = useState(false)
+  const moverComunidadeRef = useRef(true)
   moverComunidadeRef.current = moverComunidade
 
   // ---- carga ---------------------------------------------------------------
@@ -241,6 +261,8 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
     setDados(null)
     setSelId(null)
     selRef.current = null
+    fotoRef.current = null
+    setPodeDesfazer(false)
     setOcultos(new Set())
     const url =
       projetoId != null
@@ -414,7 +436,7 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
     const comPorId = new Map(dados.nos.map((n) => [n.id, n.comunidade ?? -1]))
     const layout: any = salvo
       ? { name: "preset" }
-      : { name: "cose", animate: false, nodeRepulsion: () => 12000, idealEdgeLength: () => 42, gravity: 0.5, gravityRange: 3.5, padding: 50, numIter: 2500 }
+      : { name: "cose", animate: false, nodeRepulsion: () => 18000, idealEdgeLength: () => 60, gravity: 0.45, gravityRange: 3, padding: 60, numIter: 2500 }
 
     const cy = cytoscape({
       container: el,
@@ -426,7 +448,7 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
             tipo: n.tipo,
             comunidade: n.comunidade ?? -1,
             grau: n.grau ?? 0,
-            tam: 10 + Math.min(26, Math.sqrt(n.grau ?? 0) * 6),
+            tam: 16 + Math.min(46, Math.sqrt(n.grau ?? 0) * 9),
             cor: corDoNo(modoRef.current, catalogoRef.current, n.tipo, n.comunidade ?? -1),
           },
           position: pos?.get(n.id),
@@ -517,44 +539,69 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
       selecionar(e.target.id())
       setFocoLocal(true)
     })
-    cy.on("grab zoom", () => setTip(null))
     cy.on("zoom", () => atualizarRotulos(cy))
 
+    // ---- arrastar ------------------------------------------------------------
     // "Mover comunidade junto": ao arrastar um nó, desloca todos da mesma comunidade
     // pela mesma distância — organiza o grafo em blocos em vez de nó por nó.
-    let arrasto: { id: string; x0: number; y0: number; pares: { id: string; x0: number; y0: number }[] } | null = null
-    cy.on("dragstart", "node", (e) => {
-      const no = e.target
-      const pares: { id: string; x0: number; y0: number }[] = []
-      if (moverComunidadeRef.current) {
-        const com = no.data("comunidade")
+    //
+    // IMPORTANTE: o Cytoscape NÃO tem evento "dragstart". O evento que dispara
+    // quando o nó é pego é "grab" (era por isso que o "mover comunidade" nunca
+    // funcionava: o handler de dragstart simplesmente não rodava).
+    type Par = { no: cytoscape.NodeSingular; x0: number; y0: number }
+    let arrasto: { id: string; x0: number; y0: number; pares: Par[] } | null = null
+    let fotoPendente: Map<string, Pos> | null = null
+
+    cy.on("grab", "node", (e) => {
+      setTip(null)
+      fotoPendente = tirarFoto(cy) // só vira "desfazer" se de fato houver arrasto (dragfree)
+      const no = e.target as cytoscape.NodeSingular
+      const com = no.data("comunidade")
+      const sozinho = !!(e.originalEvent as MouseEvent | undefined)?.altKey // Alt = só este nó
+      const pares: Par[] = []
+      if (moverComunidadeRef.current && !sozinho && com !== -1) {
         cy.nodes().forEach((n) => {
-          if (n.data("comunidade") === com && n.id() !== no.id()) {
-            pares.push({ id: n.id(), x0: n.position("x"), y0: n.position("y") })
+          if (n.id() !== no.id() && n.data("comunidade") === com) {
+            pares.push({ no: n, x0: n.position("x"), y0: n.position("y") })
           }
         })
       }
       arrasto = { id: no.id(), x0: no.position("x"), y0: no.position("y"), pares }
     })
+
     cy.on("drag", "node", (e) => {
-      if (!arrasto || e.target.id() !== arrasto.id) return
-      const dx = e.target.position("x") - arrasto.x0
-      const dy = e.target.position("y") - arrasto.y0
-      arrasto.pares.forEach((pr) => {
-        const el = cy.getElementById(pr.id)
-        if (el.nonempty()) el.position({ x: pr.x0 + dx, y: pr.y0 + dy })
+      const a = arrasto
+      if (!a || e.target.id() !== a.id || a.pares.length === 0) return
+      const dx = e.target.position("x") - a.x0
+      const dy = e.target.position("y") - a.y0
+      cy.batch(() => {
+        for (const pr of a.pares) pr.no.position({ x: pr.x0 + dx, y: pr.y0 + dy })
       })
     })
 
     // Ao soltar um nó: encaixa na grade (facilita alinhar) e salva (debounce).
+    // O mesmo ajuste da grade vale para o grupo, senão a comunidade "desalinha".
     let timer: ReturnType<typeof setTimeout>
     cy.on("dragfree", "node", (e) => {
+      const a = arrasto
       arrasto = null
       const p = e.target.position()
-      e.target.position({
-        x: Math.round(p.x / GRADE) * GRADE,
-        y: Math.round(p.y / GRADE) * GRADE,
+      const sx = Math.round(p.x / GRADE) * GRADE
+      const sy = Math.round(p.y / GRADE) * GRADE
+      const dx = sx - p.x
+      const dy = sy - p.y
+      cy.batch(() => {
+        e.target.position({ x: sx, y: sy })
+        a?.pares.forEach((pr) => {
+          const q = pr.no.position()
+          pr.no.position({ x: q.x + dx, y: q.y + dy })
+        })
       })
+      if (fotoPendente) {
+        fotoRef.current = fotoPendente
+        fotoPendente = null
+        setPodeDesfazer(true)
+      }
       clearTimeout(timer)
       timer = setTimeout(() => salvarRef.current(), 600)
     })
@@ -668,7 +715,42 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
     return () => window.removeEventListener("keydown", onKey)
   }, [selId, selecionar])
 
+  // Ctrl/Cmd + Z desfaz a última mudança de posição (fora de campos de texto).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z") return
+      const alvo = e.target as HTMLElement | null
+      if (alvo && (alvo.tagName === "INPUT" || alvo.tagName === "TEXTAREA" || alvo.isContentEditable)) return
+      if (!fotoRef.current) return
+      e.preventDefault()
+      desfazerRef.current()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
+
   // ---- ações da UI -----------------------------------------------------------
+  function guardarFoto(cy: cytoscape.Core) {
+    fotoRef.current = tirarFoto(cy)
+    setPodeDesfazer(true)
+  }
+
+  function desfazer() {
+    const cy = cyRef.current
+    const foto = fotoRef.current
+    if (!cy || !foto) return
+    cy.batch(() => {
+      foto.forEach((p, id) => {
+        const n = cy.getElementById(id)
+        if (!n.empty()) n.position(p)
+      })
+    })
+    fotoRef.current = null
+    setPodeDesfazer(false)
+    salvarPosicoes(cy)
+  }
+  desfazerRef.current = desfazer
+
   function zoomPor(fator: number) {
     const cy = cyRef.current
     if (!cy) return
@@ -693,20 +775,108 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
     )
   }
 
+  // Layout orgânico global (como antes), agora com "Desfazer" no lugar do confirm().
   function reorganizar() {
     const cy = cyRef.current
     if (!cy || !dados) return
-    if (!window.confirm("Reorganizar o grafo (layout orgânico)? As posições salvas serão substituídas.")) return
+    guardarFoto(cy)
     // guarda os nós fixados para restaurar depois do force layout
     const travados = new Map<string, { x: number; y: number }>()
     cy.nodes().forEach((no) => { if (fixos.has(no.id())) travados.set(no.id(), no.position()) })
-    const l = cy.layout({ name: "cose", animate: false, nodeRepulsion: () => 12000, idealEdgeLength: () => 42, gravity: 0.5, gravityRange: 3.5, padding: 50, numIter: 2500 } as any)
+    const l = cy.layout({ name: "cose", animate: false, nodeRepulsion: () => 18000, idealEdgeLength: () => 60, gravity: 0.45, gravityRange: 3, padding: 60, numIter: 2500 } as any)
     l.one("layoutstop", () => {
       travados.forEach((p, id) => cy.getElementById(id).position(p))
       cy.animate({ fit: { eles: cy.elements(), padding: 72 } }, { duration: 300 })
       salvarPosicoes(cy)
     })
     l.run()
+  }
+
+  // Organiza o grafo em blocos: cada comunidade vira um "cluster" compacto (layout
+  // orgânico só com as relações internas dela) e os clusters são empacotados em
+  // linhas, sem sobreposição. Nós sem comunidade ficam juntos num bloco próprio.
+  // Obs.: aqui os nós "fixados" também entram no bloco da comunidade deles.
+  async function organizarPorComunidade() {
+    const cy = cyRef.current
+    if (!cy || !dados || organizando) return
+    setOrganizando(true)
+    try {
+      guardarFoto(cy)
+
+      const grupos = new Map<number, cytoscape.NodeSingular[]>()
+      cy.nodes().forEach((n) => {
+        const c = n.data("comunidade") as number
+        const lista = grupos.get(c)
+        if (lista) lista.push(n)
+        else grupos.set(c, [n])
+      })
+
+      type Bloco = { nos: cytoscape.NodeSingular[]; x1: number; y1: number; w: number; h: number }
+      const blocos: Bloco[] = []
+
+      for (const nos of grupos.values()) {
+        const col = cy.collection(nos as any)
+        if (nos.length === 1) {
+          nos[0].position({ x: 0, y: 0 })
+        } else {
+          // só os nós da comunidade + as arestas entre eles
+          const l = col.union(col.edgesWith(col)).layout({
+            name: "cose",
+            animate: false,
+            fit: false,
+            randomize: true,
+            nodeRepulsion: () => 12000,
+            idealEdgeLength: () => 55,
+            gravity: 0.9,
+            numIter: 1500,
+          } as any)
+          const fim = (l as any).promiseOn("layoutstop")
+          l.run()
+          await fim
+        }
+        // caixa delimitadora calculada na mão (boundingBox() ignora nós ocultos)
+        let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity
+        nos.forEach((n) => {
+          const p = n.position()
+          const r = (Number(n.data("tam")) || 20) / 2 + 14
+          x1 = Math.min(x1, p.x - r)
+          y1 = Math.min(y1, p.y - r)
+          x2 = Math.max(x2, p.x + r)
+          y2 = Math.max(y2, p.y + r)
+        })
+        blocos.push({ nos, x1, y1, w: x2 - x1, h: y2 - y1 })
+      }
+
+      // empacota em linhas: maiores primeiro, quebrando linha ao passar da largura-alvo
+      blocos.sort((a, b) => b.nos.length - a.nos.length)
+      const areaTotal = blocos.reduce((s, b) => s + (b.w + FOLGA_BLOCOS) * (b.h + FOLGA_BLOCOS), 0)
+      const larguraMax = Math.max(Math.sqrt(areaTotal) * 1.25, ...blocos.map((b) => b.w))
+      let x = 0
+      let y = 0
+      let alturaLinha = 0
+      cy.batch(() => {
+        for (const b of blocos) {
+          if (x > 0 && x + b.w > larguraMax) {
+            x = 0
+            y += alturaLinha + FOLGA_BLOCOS
+            alturaLinha = 0
+          }
+          const dx = x - b.x1
+          const dy = y - b.y1
+          b.nos.forEach((n) => {
+            const p = n.position()
+            n.position({ x: p.x + dx, y: p.y + dy })
+          })
+          x += b.w + FOLGA_BLOCOS
+          alturaLinha = Math.max(alturaLinha, b.h)
+        }
+      })
+
+      cy.animate({ fit: { eles: cy.elements(), padding: 60 } }, { duration: 300 })
+      salvarPosicoes(cy)
+    } finally {
+      setOrganizando(false)
+    }
   }
 
   function alternarTela() {
@@ -758,7 +928,7 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
         }))
 
   const botaoControle =
-    "grid size-8 place-items-center rounded-md border border-white/10 text-gray-300 transition-colors hover:border-[#EF7541]/60 hover:text-white focus-visible:outline-2 focus-visible:outline-[#EF7541]"
+    "grid size-8 place-items-center rounded-md border border-white/10 text-gray-300 transition-colors hover:border-[#EF7541]/60 hover:text-white focus-visible:outline-2 focus-visible:outline-[#EF7541] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/10 disabled:hover:text-gray-300"
 
   return (
     <div className="flex flex-col gap-3">
@@ -825,7 +995,7 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
             type="button"
             onClick={() => setMoverComunidade((v) => !v)}
             aria-pressed={moverComunidade}
-            title="Ao arrastar um nó, move a comunidade inteira junto"
+            title="Ao arrastar um nó, move a comunidade inteira junto. Segure Alt para mover só um nó."
             className={`rounded-lg border border-white/10 px-2.5 py-1.5 text-xs transition-colors ${
               moverComunidade
                 ? "bg-[#A78BFA]/20 text-[#A78BFA]"
@@ -902,7 +1072,7 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
         />
 
-        {/* controles de zoom */}
+        {/* controles de zoom e organização */}
         {temNos && (
           <div
             className="absolute bottom-3 left-3 flex flex-col gap-1.5 rounded-lg border border-white/10 p-1.5 backdrop-blur"
@@ -917,8 +1087,28 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
             <button type="button" className={botaoControle} onClick={ajustar} aria-label="Enquadrar tudo" title="Enquadrar tudo">
               <Scan className="size-4" />
             </button>
-            <button type="button" className={botaoControle} onClick={reorganizar} aria-label="Reorganizar automaticamente" title="Reorganizar automaticamente">
+            <button
+              type="button"
+              className={botaoControle}
+              onClick={organizarPorComunidade}
+              disabled={organizando || catalogo.comunidadesReais === 0}
+              aria-label="Organizar por comunidade"
+              title="Organizar por comunidade (um bloco para cada grupo)"
+            >
+              <LayoutGrid className="size-4" />
+            </button>
+            <button type="button" className={botaoControle} onClick={reorganizar} aria-label="Reorganizar automaticamente" title="Reorganizar automaticamente (layout orgânico)">
               <Shuffle className="size-4" />
+            </button>
+            <button
+              type="button"
+              className={botaoControle}
+              onClick={desfazer}
+              disabled={!podeDesfazer}
+              aria-label="Desfazer última mudança"
+              title="Desfazer última mudança (Ctrl+Z)"
+            >
+              <Undo2 className="size-4" />
             </button>
             <button type="button" className={botaoControle} onClick={alternarTela} aria-label={tela ? "Sair da tela cheia" : "Tela cheia"} title={tela ? "Sair da tela cheia" : "Tela cheia"}>
               {tela ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
@@ -1075,7 +1265,8 @@ export default function GrafoViewer({ projetoId, altura = 520 }: Props) {
 
       {temNos && (
         <p className="text-xs text-gray-500">
-          Arraste os nós para organizar, a posição fica salva. Clique em um nó para ver os detalhes.
+          Arraste um nó para mover a comunidade inteira (Alt + arrastar move só um). Use o botão de grade
+          para organizar por comunidade e Ctrl+Z para desfazer. As posições ficam salvas.
         </p>
       )}
     </div>

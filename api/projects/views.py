@@ -18,6 +18,7 @@ from .serializers import ProjetoSerializer, DocumentoUploadSerializer
 from .upload_handlers import DocumentUploadSizeHandler
 from .validators import MAX_UPLOAD_SIZE_BYTES, UPLOAD_SIZE_MESSAGE
 from atividades.servico import registrar
+from users.permissions import escopo
 
 import time
 
@@ -53,17 +54,24 @@ def _declared_request_is_too_large(request):
 # -------------------------
 
 class ProjetoListCreateView(generics.ListCreateAPIView):
-    queryset = Projeto.objects.all()
     serializer_class = ProjetoSerializer
 
+    def get_queryset(self):
+        # Um PO nao lista os projetos dos outros.
+        return Projeto.objects.filter(**escopo(self.request.user, "usuario_po"))
+
     def perform_create(self, serializer):
-        projeto = serializer.save()
+        # A posse sai do request.user, nao do corpo da requisicao.
+        projeto = serializer.save(usuario_po=self.request.user)
         registrar(self.request.user, "projeto_criado", projeto.titulo)
 
 
 class ProjetoDataView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Projeto.objects.all()
     serializer_class = ProjetoSerializer
+
+    def get_queryset(self):
+        # Ler, editar ou excluir projeto alheio passa a dar 404.
+        return Projeto.objects.filter(**escopo(self.request.user, "usuario_po"))
 
     def perform_update(self, serializer):
         titulo_antigo = serializer.instance.titulo  # lê antes do save()
@@ -89,7 +97,8 @@ class DocumentoListView(generics.ListAPIView):
 
     def get_queryset(self):
         return Documento.objects.filter(
-            projeto_id=self.kwargs["project_id"]
+            projeto_id=self.kwargs["project_id"],
+            **escopo(self.request.user, "projeto__usuario_po"),
         ).order_by("-data")
 
 class DocumentoUploadView(APIView):
@@ -98,7 +107,8 @@ class DocumentoUploadView(APIView):
     def post(self, request, project_id):
         projeto = get_object_or_404(
             Projeto,
-            pk=project_id
+            pk=project_id,
+            **escopo(request.user, "usuario_po"),
         )
 
         django_request = request._request
@@ -202,6 +212,7 @@ class DocumentoReprocessarView(APIView):
         projeto = get_object_or_404(
             Projeto,
             pk=project_id,
+            **escopo(request.user, "usuario_po"),
         )
         documento = get_object_or_404(
             Documento,
@@ -251,6 +262,7 @@ class DocumentoDeleteView(APIView):
         projeto = get_object_or_404(
             Projeto,
             pk=project_id,
+            **escopo(request.user, "usuario_po"),
         )
 
         documento = get_object_or_404(
