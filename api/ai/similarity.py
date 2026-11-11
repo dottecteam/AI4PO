@@ -4,6 +4,7 @@ from pgvector.django import CosineDistance
 
 from ai.indexing import FalhaDeEmbeddingError, gerar_embeddings
 from ai.models import ChunkDoc
+from users.permissions import escopo
 
 
 SIMILARITY_THRESHOLD = 0.81
@@ -39,13 +40,19 @@ def gerar_vetor_de_requisito(texto: object) -> list[float] | None:
 
 
 """Busca as possíveis correspondências do texto na base indexada."""
-def verificar_similaridade(texto: object) -> list[ResultadoSimilaridade]:
+def verificar_similaridade(texto: object, usuario) -> list[ResultadoSimilaridade]:
+    """So compara com chunks dos projetos de `usuario`.
+
+    Sem o filtro a rota devolvia conteudo integral de documentos de outro PO,
+    exatamente o que retrieval.buscar_trechos ja impede.
+    """
     vetor = gerar_vetor_de_requisito(texto)
     if vetor is None:
         return []
 
     chunks = (
         ChunkDoc.objects
+        .filter(**escopo(usuario, "projeto__usuario_po"))
         .select_related("projeto", "documento")
         .annotate(distance=CosineDistance("embedding", vetor))
         .filter(distance__lte=MAX_COSINE_DISTANCE)

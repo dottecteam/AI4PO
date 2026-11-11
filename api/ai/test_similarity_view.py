@@ -5,6 +5,7 @@ from rest_framework.test import APIClient
 
 from ai.indexing import FalhaDeEmbeddingError
 from ai.similarity import ResultadoSimilaridade
+from users.models import UsuarioPO
 
 
 class SimilarityCheckViewTests(SimpleTestCase):
@@ -12,6 +13,11 @@ class SimilarityCheckViewTests(SimpleTestCase):
 
     def setUp(self):
         self.client = APIClient()
+        # SimpleTestCase nao encosta no banco: uma instancia nao salva ja
+        # satisfaz IsAuthenticated. A view agora repassa esse usuario ao servico
+        # de similaridade, por isso a referencia fica em self.usuario.
+        self.usuario = UsuarioPO(email="view@pro4tech.com", nome="PO View")
+        self.client.force_authenticate(self.usuario)
         verificar = patch("ai.similarity.verificar_similaridade")
         self.verificar = verificar.start()
         self.addCleanup(verificar.stop)
@@ -50,7 +56,7 @@ class SimilarityCheckViewTests(SimpleTestCase):
                 ]
             },
         )
-        self.verificar.assert_called_once_with(texto)
+        self.verificar.assert_called_once_with(texto, self.usuario)
 
     def test_preserva_ordem_dos_resultados_do_servico(self):
         self.verificar.return_value = [

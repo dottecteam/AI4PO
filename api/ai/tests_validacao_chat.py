@@ -176,9 +176,13 @@ class ChatValidacaoTests(APITestCase):
         self.assertEqual(res.status_code, 200)
         dados = res.json()
         self.assertIsNone(dados["validacao"])
-        self.assertIn("Épico:", dados["message"])
+        # O modelo sai no formato do prompt (EPICO — ..., EU QUERO...), nao no
+        # estilo "Epico:" do parser. O que se quer provar aqui e que o modelo
+        # veio inteiro, entao se ancora em trechos fixos dele.
+        self.assertIn("ÉPICO", dados["message"])
+        self.assertIn("EU QUERO", dados["message"])
 
-    @patch("ai.views.requests.post")
+    @patch("ai.views._http.post")
     def test_mensagem_comum_continua_indo_para_o_ollama(self, mock_post):
         mock_post.return_value.json.return_value = {"message": {"content": "Olá!"}}
         res = self.enviar("Oi, tudo bem?")

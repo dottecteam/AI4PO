@@ -445,7 +445,7 @@ class SimilarityCheckView(APIView):
             return Response({"resultados": []})
 
         try:
-            resultados = similarity.verificar_similaridade(texto)
+            resultados = similarity.verificar_similaridade(texto, request.user)
         except FalhaDeEmbeddingError:
             return Response(
                 {"detail": "Verificação de similaridade indisponível."},

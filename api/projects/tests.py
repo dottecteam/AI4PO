@@ -170,6 +170,8 @@ class DocumentUploadAPITests(TestCase):
             descricao="Descrição",
         )
         self.client = APIClient()
+        # As rotas exigem IsAuthenticated; sem isto todo request volta 401.
+        self.client.force_authenticate(usuario_po)
         self.url = reverse("document-upload", kwargs={"project_id": self.projeto.pk})
 
     def test_uploads_supported_document_and_returns_created_metadata(self):
@@ -371,6 +373,8 @@ class DocumentReprocessAPITests(TestCase):
             descricao="Descrição",
         )
         self.client = APIClient()
+        # Mesmo caso do upload: a rota e protegida, o cliente precisa de identidade.
+        self.client.force_authenticate(usuario_po)
 
         self.uploaded_file = SimpleUploadedFile(
             "documento_falho.txt",
@@ -506,4 +510,118 @@ class DocumentReprocessAPITests(TestCase):
 
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertIn("error", response.data)
+        self.assertIn("error", response.data)
+
+
+class EscopoEntrePOsTests(TestCase):
+    """Prova a regra da historia #1: cada PO so enxerga os proprios projetos.
+
+    Antes de `users.permissions.escopo` entrar em projects/views.py, todos os
+    casos abaixo devolviam os dados alheios com 200 -- inclusive o DELETE, que
+    apagava em cascata documentos, chunks e grafo de outro PO. Falham de
+    proposito se o filtro for removido.
+    """
+
+    def setUp(self):
+        User = get_user_model()
+        self.dono = User.objects.create_user(
+            email="dono-escopo@test.com", nome="Dono")
+        self.intruso = User.objects.create_user(
+            email="intruso-escopo@test.com", nome="Intruso")
+        self.projeto = Projeto.objects.create(
+            usuario_po=self.dono,
+            titulo="Projeto do Dono",
+            descricao="nada a ver com o intruso",
+        )
+        self.documento = Documento.objects.create(
+            projeto=self.projeto, nome="requisitos.md", tipo="md")
+        self.client = APIClient()
+        self.client.force_authenticate(self.intruso)
+
+    def test_lista_devolve_so_os_projetos_de_quem_logou(self):
+        resposta = self.client.get(reverse("projeto-list-create"))
+        self.assertEqual(resposta.status_code, status.HTTP_200_OK)
+        self.assertEqual(resposta.json(), [])
+
+    def test_nao_le_projeto_alheio(self):
+        resposta = self.client.get(
+            reverse("projeto_detail", args=[self.projeto.pk]))
+        self.assertEqual(resposta.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_nao_edita_projeto_alheio(self):
+        resposta = self.client.patch(
+            reverse("projeto_detail", args=[self.projeto.pk]),
+            {"titulo": "sequestrado"},
+            format="json",
+        )
+        self.assertEqual(resposta.status_code, status.HTTP_404_NOT_FOUND)
+        self.projeto.refresh_from_db()
+        self.assertEqual(self.projeto.titulo, "Projeto do Dono")
+
+    def test_nao_apaga_projeto_alheio(self):
+        resposta = self.client.delete(
+            reverse("projeto_detail", args=[self.projeto.pk]))
+        self.assertEqual(resposta.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(Projeto.objects.filter(pk=self.projeto.pk).exists())
+        # nada em cascata foi tocado
+        self.assertTrue(Documento.objects.filter(pk=self.documento.pk).exists())
+
+    def test_idPo_no_corpo_nao_muda_a_posse(self):
+        """idPo passou a read_only: o dono e sempre quem esta logado."""
+        resposta = self.client.post(
+            reverse("projeto-list-create"),
+            {"titulo": "Novo", "descricao": "x",
+             "status": "Rascunho", "idPo": self.dono.pk},
+            format="json",
+        )
+        self.assertEqual(resposta.status_code, status.HTTP_201_CREATED)
+        criado = Projeto.objects.get(titulo="Novo")
+        self.assertEqual(criado.usuario_po_id, self.intruso.pk)
+
+    def test_nao_envia_documento_para_projeto_alheio(self):
+        arquivo = SimpleUploadedFile(
+            "invasao.md", b"conteudo", content_type="text/markdown")
+        resposta = self.client.post(
+            reverse("document-upload", kwargs={"project_id": self.projeto.pk}),
+            {"arquivo": arquivo},
+            format="multipart",
+        )
+        self.assertEqual(resposta.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(Documento.objects.filter(projeto=self.projeto).count(), 1)
+
+    def test_nao_reprocessa_documento_alheio(self):
+        resposta = self.client.post(
+            reverse(
+                "document-reprocess",
+                kwargs={"project_id": self.projeto.pk,
+                        "document_id": self.documento.pk},
+            )
+        )
+        self.assertEqual(resposta.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_nao_apaga_documento_alheio(self):
+        resposta = self.client.delete(
+            reverse(
+                "document-delete",
+                kwargs={"project_id": self.projeto.pk,
+                        "document_id": self.documento.pk},
+            )
+        )
+        self.assertEqual(resposta.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(Documento.objects.filter(pk=self.documento.pk).exists())
+
+    def test_listar_documentos_alheios_devolve_lista_vazia(self):
+        """A rota e aninhada por projeto; o escopo deixa o resultado vazio."""
+        resposta = self.client.get(
+            reverse("document-list", kwargs={"project_id": self.projeto.pk}))
+        self.assertEqual(resposta.status_code, status.HTTP_200_OK)
+        self.assertEqual(resposta.json(), [])
+
+    def test_dono_continua_enxergando_o_proprio_projeto(self):
+        self.client.force_authenticate(self.dono)
+        self.assertEqual(
+            self.client.get(reverse("projeto_detail", args=[self.projeto.pk])).status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            len(self.client.get(reverse("projeto-list-create")).json()), 1)
