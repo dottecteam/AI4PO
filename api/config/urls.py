@@ -27,6 +27,7 @@ urlpatterns = [
     path('api/', include('projects.urls')),
     path("api/", include("ai.urls")),
     path("api/", include("atividades.urls")),
+    path("api/", include("users.urls_profissionais")),
 ]
 
 # Task #3-4: em desenvolvimento (DEBUG=True), o proprio Django serve os
