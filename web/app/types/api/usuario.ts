@@ -13,9 +13,8 @@ export type NovoLogin = {
   senha: string
 }
 
-export type ErrosDeCampos = Partial<Record<keyof NovoLogin, string[]>>
+export type ErrosDeCampos = Partial<Record<string, string[]>>
 
-// Login de PO nas rotas administrativas
 export type UsuarioAdmin = {
   id: number
   nome: string
