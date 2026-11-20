@@ -3,7 +3,7 @@ import Profissionais from "./client";
 
 export const metadata: Metadata = {
   title: "Profissionais",
-  description: "Profissionais, competências e projetos da plataforma AI4PO."
+  description: "Busque profissionais por competência e cadastre novos."
 };
 
 export default function ProfissionaisPage() {

@@ -1,21 +1,48 @@
 import type { ProjetoStatus } from "./projeto"
 
-export interface Competencia {
+export type CompetenciaResumo = {
   id: number
   nome: string
 }
 
-// Item da listagem de profissionais
-export interface ProfissionalResumo {
+export type Profissional = {
   id: number
   nome: string
   email: string
-  competencias: string[]
-  total_projetos: number
+  competencias: CompetenciaResumo[]
 }
 
-// Participação do profissional em um projeto, com o papel desempenhado
-export interface ParticipacaoPerfil {
+export type NovoProfissional = {
+  nome: string
+  email: string
+  competencias: number[]
+}
+
+export type ProfissionalAfinidade = {
+  id: number
+  nome: string
+  email: string
+  afinidade: number
+  competencias_correspondentes: CompetenciaResumo[]
+  competencias_faltantes: CompetenciaResumo[]
+  total_competencias: number
+  foco: number
+}
+
+export type CriteriosBusca = {
+  competencias_buscadas: CompetenciaResumo[]
+  afinidade: string
+  ordenacao: string[]
+}
+
+export type ResultadoBusca = {
+  criterios: CriteriosBusca
+  total: number
+  resultados: ProfissionalAfinidade[]
+}
+
+// Participação do profissional em um projeto, com o papel desempenhado (Task #15-2)
+export type ParticipacaoPerfil = {
   id: number
   papel: string
   criado_em: string
@@ -28,24 +55,24 @@ export interface ParticipacaoPerfil {
   pode_editar: boolean
 }
 
-export interface ProjetoGerenciavel {
+export type ProjetoGerenciavel = {
   id: number
   titulo: string
 }
 
 // Corpo de criação/edição de uma participação
-export interface ParticipacaoInput {
+export type ParticipacaoInput = {
   funcionario: number
   projeto: number
   papel: string
 }
 
 // Perfil completo: competências e trajetória em projetos
-export interface PerfilProfissional {
+export type PerfilProfissional = {
   id: number
   nome: string
   email: string
-  competencias: Competencia[]
+  competencias: CompetenciaResumo[]
   participacoes: ParticipacaoPerfil[]
   // Projetos em que o usuário logado pode registrar/alterar participações
   projetos_gerenciaveis: ProjetoGerenciavel[]

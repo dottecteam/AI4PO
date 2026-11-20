@@ -15,10 +15,12 @@ class ProjetoSerializer(serializers.ModelSerializer):
         read_only=True
     )
 
-    # ID do PO
+    # ID do PO: somente saida. Antes era write_only, o que permitia a qualquer
+    # cliente mover um projeto para outro usuario num PATCH; a posse agora e
+    # definida pela view (perform_create) a partir do request.user.
     idPo = serializers.IntegerField(
         source="usuario_po_id",
-        write_only=True
+        read_only=True
     )
 
     # Traduz o campo "criado_em"
@@ -110,20 +112,6 @@ class ParticipacaoSerializer(serializers.ModelSerializer):
 # -------------------------
 # Perfil do profissional (Task #15-2)
 # -------------------------
-class ProfissionalResumoSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
-    nome = serializers.CharField()
-    email = serializers.EmailField()
-    competencias = serializers.SerializerMethodField()
-    total_projetos = serializers.SerializerMethodField()
-
-    def get_competencias(self, funcionario):
-        return [c.nome for c in funcionario.competencias.all()]
-
-    def get_total_projetos(self, funcionario):
-        return len({p.projeto_id for p in funcionario.participacoes.all()})
-
-
 class ParticipacaoPerfilSerializer(serializers.ModelSerializer):
     projeto = serializers.SerializerMethodField()
     pode_editar = serializers.SerializerMethodField()

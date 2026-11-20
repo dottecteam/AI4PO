@@ -14,6 +14,7 @@ import {
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { exportarConversaPDF } from "@/app/services/API/chat"
+import { api } from "@/app/services/API/api"
 import CartaoValidacao, {
   type Validacao,
 } from "@/app/components/app/CartaoValidacao"
@@ -27,7 +28,9 @@ const altura_max_input = 160 // px (~6 linhas): acima disso o campo passa a rola
 // Origem de um trecho usado na resposta (campo "fontes" do /api/chat/)
 type Fonte = {
   chunk_id: number
+  projeto_id: number
   projeto: string
+  documento_id: number
   documento: string
   secao: string | null
   trecho: string
@@ -369,6 +372,27 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     }
   }
 
+  const abrirDocumento = async (fonte: Fonte) => {
+    const aba = window.open("", "_blank")
+    try {
+      const documentos = await api.get<{ id: number; arquivo: string | null }[]>(
+        `/api/projects/${fonte.projeto_id}/documents/`,
+      )
+      const url = documentos.find((d) => d.id === fonte.documento_id)?.arquivo
+      if (!url) throw new Error("Documento não encontrado")
+      if (aba) {
+        aba.opener = null
+        aba.location.href = url
+      } else {
+        window.open(url, "_blank", "noopener")
+      }
+    } catch (error) {
+      console.error("Erro ao abrir documento:", error)
+      aba?.close()
+      alert("Não foi possível abrir o documento.")
+    }
+  }
+
   const pararGeracao = () => {
     abortRef.current?.abort()
   }
@@ -478,10 +502,22 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
                   <ul className="mt-2 space-y-2">
                     {msg.fontes.map((fonte, i) => (
                       <li key={`${fonte.chunk_id}-${i}`}>
-                        <span className="text-gray-300 font-medium">
-                          {fonte.projeto} › {fonte.documento}
-                          {fonte.secao ? ` › ${fonte.secao}` : ""}
-                        </span>
+                        {fonte.documento_id ? (
+                          <button
+                            type="button"
+                            onClick={() => abrirDocumento(fonte)}
+                            title="Abrir documento"
+                            className="text-gray-300 font-medium text-left underline-offset-2 hover:text-white hover:underline cursor-pointer"
+                          >
+                            {fonte.projeto} › {fonte.documento}
+                            {fonte.secao ? ` › ${fonte.secao}` : ""}
+                          </button>
+                        ) : (
+                          <span className="text-gray-300 font-medium">
+                            {fonte.projeto} › {fonte.documento}
+                            {fonte.secao ? ` › ${fonte.secao}` : ""}
+                          </span>
+                        )}
                         <span className="ml-2 opacity-70">
                           {Math.round(fonte.similaridade * 100)}%
                         </span>

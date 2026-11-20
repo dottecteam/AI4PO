@@ -353,6 +353,11 @@ class FerramentaDoGrafoNaViewTests(TestCase):
     def setUp(self):
         po = UsuarioPO.objects.create_user(email='view@pro4tech.com', nome='PO View', password='x')
         self.projeto = Projeto.objects.create(usuario_po=po, titulo='PayCore', descricao='pagamentos')
+        # /api/chat/ so autenticia por cookie JWT: o Client do Django (mesmo
+        # logado em sessao) volta 401. Segue aqui o mesmo padrao APIClient +
+        # force_authenticate ja usado pelos outros testes deste arquivo.
+        self.client = APIClient()
+        self.client.force_authenticate(po)
         marya = Entidade.objects.create(nome='Marya Vitória', chave='maryavitoria', tipo='pessoa',
                                         descricao='Desenvolvedora', projeto=self.projeto)
         frontend = Entidade.objects.create(nome='frontend do chatbot', chave='frontendchatbot',
@@ -368,7 +373,9 @@ class FerramentaDoGrafoNaViewTests(TestCase):
 
     def test_agente_aciona_ferramenta_e_recebe_contexto_do_grafo(self):
         depois_de_ferramenta = self._resposta({"content": "Foi a Marya Vitória."})
-        with patch('ai.views.requests.post', side_effect=[
+        # O view fala com o Ollama pela sessao reutilizada (_http), nao por
+        # requests.post: patchear o modulo errado deixava a chamada real escapar.
+        with patch('ai.views._http.post', side_effect=[
             self._resposta({"tool_calls": [{"function": {
                 "name": "consultar_grafo_conhecimento",
                 "arguments": {"pergunta": "quem fez o frontend do chatbot?"},
@@ -394,7 +401,7 @@ class FerramentaDoGrafoNaViewTests(TestCase):
         Entidade.objects.create(nome='Renata Prado', chave='renataprado', tipo='pessoa',
                                 descricao='Analista de crédito', projeto=outro)
 
-        with patch('ai.views.requests.post', side_effect=[
+        with patch('ai.views._http.post', side_effect=[
             self._resposta({"tool_calls": [{"function": {
                 "name": "consultar_grafo_conhecimento",
                 "arguments": {"pergunta": "quem é Renata Prado?"},

@@ -1,16 +1,8 @@
 import { api } from "@/app/services/API/api"
-import type {
-  ParticipacaoInput,
-  PerfilProfissional,
-  ProfissionalResumo,
-} from "@/app/types/api/profissional"
+import type { ParticipacaoInput, PerfilProfissional } from "@/app/types/api/profissional"
 
+// Listagem, cadastro e busca por competência ficam em ./profissionais (Task #14)
 export const profissionalService = {
-  listar: (busca = "") =>
-    api.get<ProfissionalResumo[]>(
-      `/api/profissionais/${busca.trim() ? `?busca=${encodeURIComponent(busca.trim())}` : ""}`,
-    ),
-
   buscarPerfil: (id: number) => api.get<PerfilProfissional>(`/api/profissionais/${id}/`),
 
   // Perfil profissional do usuário logado (vinculado pelo e-mail).
