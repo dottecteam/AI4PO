@@ -1,7 +1,9 @@
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import Count
 from django.db.models.functions import Lower
+from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -89,14 +91,86 @@ def validar_profissional(dados):
     return {"nome": nome, "email": email, "competencias": competencias}, erros
 
 
+COMPETENCIA_MAX = 150
+
+
+def validar_competencia(dados, ignorar_pk=None):
+    """Nome obrigatório, até 150 caracteres e sem repetir outra competência (sem diferenciar maiúsculas)."""
+    nome = " ".join(_texto(dados.get("nome")).split())
+    erros = {}
+    if not nome:
+        erros["nome"] = ["O nome da competência é obrigatório."]
+    elif len(nome) > COMPETENCIA_MAX:
+        erros["nome"] = [f"O nome pode ter no máximo {COMPETENCIA_MAX} caracteres."]
+    else:
+        repetidas = Competencia.objects.filter(nome__iexact=nome)
+        if ignorar_pk is not None:
+            repetidas = repetidas.exclude(pk=ignorar_pk)
+        if repetidas.exists():
+            erros["nome"] = ["Já existe uma competência com este nome."]
+    return nome, erros
+
+
+def serializar_competencia_com_total(competencia):
+    return {**serializar_competencia(competencia), "total_profissionais": competencia.total_profissionais}
+
+
 class CompetenciaListView(APIView):
-    """GET /api/competencias/ — catálogo de competências, para montar a busca e o cadastro."""
+    """GET /api/competencias/ — catálogo de competências, para montar a busca e o cadastro.
+
+    ?com_totais=1 inclui quantos profissionais têm cada competência (tela de gerenciamento).
+    POST cadastra uma competência nova.
+    """
     authentication_classes = [CookieJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         competencias = Competencia.objects.order_by(Lower("nome"), "id")
+        if request.query_params.get("com_totais") in ("1", "true"):
+            competencias = competencias.annotate(total_profissionais=Count("funcionarios"))
+            return Response([serializar_competencia_com_total(c) for c in competencias])
         return Response([serializar_competencia(c) for c in competencias])
+
+    def post(self, request):
+        dados = request.data if isinstance(request.data, dict) else {}
+        nome, erros = validar_competencia(dados)
+        if erros:
+            return Response({"detail": "Corrija os campos destacados.", "campos": erros}, status=400)
+        competencia = Competencia.objects.create(nome=nome)
+        competencia.total_profissionais = 0
+        return Response(serializar_competencia_com_total(competencia), status=201)
+
+
+class CompetenciaDetailView(APIView):
+    """PATCH renomeia (qualquer usuário logado); DELETE exclui (somente administrador).
+
+    Excluir remove a competência de todos os profissionais que a possuem.
+    """
+    authentication_classes = [CookieJWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def _alvo(self, pk):
+        return get_object_or_404(
+            Competencia.objects.annotate(total_profissionais=Count("funcionarios")), pk=pk
+        )
+
+    def patch(self, request, pk):
+        competencia = self._alvo(pk)
+        dados = request.data if isinstance(request.data, dict) else {}
+        nome, erros = validar_competencia(dados, ignorar_pk=competencia.pk)
+        if erros:
+            return Response({"detail": "Corrija os campos destacados.", "campos": erros}, status=400)
+        competencia.nome = nome
+        competencia.save(update_fields=["nome"])
+        return Response(serializar_competencia_com_total(competencia))
+
+    def delete(self, request, pk):
+        if not request.user.is_staff:
+            return Response(
+                {"detail": "Apenas administradores podem excluir competências."}, status=403
+            )
+        self._alvo(pk).delete()
+        return Response(status=204)
 
 
 class ProfissionalListCreateView(APIView):
