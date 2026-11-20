@@ -1,3 +1,4 @@
+from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 import os
 
@@ -14,7 +15,14 @@ from ai.extraction import (
 )
 
 from .models import Projeto, Documento, Participacao
-from .serializers import ProjetoSerializer, DocumentoUploadSerializer, ParticipacaoSerializer
+from .serializers import (
+    ProjetoSerializer,
+    DocumentoUploadSerializer,
+    ParticipacaoSerializer,
+    ProfissionalResumoSerializer,
+    PerfilProfissionalSerializer,
+)
+from users.models import Funcionario
 from .upload_handlers import DocumentUploadSizeHandler
 from .validators import MAX_UPLOAD_SIZE_BYTES, UPLOAD_SIZE_MESSAGE
 from atividades.servico import registrar
@@ -323,3 +331,61 @@ class ParticipacaoDataView(generics.RetrieveUpdateDestroyAPIView):
         descricao = str(instance)
         instance.delete()
         registrar(self.request.user, "participacao_excluida", descricao)
+
+
+# -------------------------
+# Perfil do profissional (Task #15-2)
+# -------------------------
+def _profissionais_com_trajetoria():
+    return Funcionario.objects.prefetch_related(
+        "competencias",
+        Prefetch(
+            "participacoes",
+            queryset=Participacao.objects.select_related("projeto"),
+        ),
+    )
+
+
+class ProfissionalListView(generics.ListAPIView):
+    """Lista os profissionais; ?busca= filtra por nome, e-mail ou competência."""
+
+    serializer_class = ProfissionalResumoSerializer
+
+    def get_queryset(self):
+        queryset = _profissionais_com_trajetoria().order_by("nome")
+        busca = (self.request.query_params.get("busca") or "").strip()
+        if busca:
+            queryset = queryset.filter(
+                Q(nome__icontains=busca)
+                | Q(email__icontains=busca)
+                | Q(competencias__nome__icontains=busca)
+            ).distinct()
+        return queryset
+
+
+class ProfissionalPerfilView(generics.RetrieveAPIView):
+    """Perfil do profissional: projetos, papéis e competências."""
+
+    serializer_class = PerfilProfissionalSerializer
+
+    def get_queryset(self):
+        return _profissionais_com_trajetoria()
+
+
+class MeuPerfilProfissionalView(APIView):
+    """Perfil profissional do usuário logado, vinculado pelo e-mail.
+
+    Responde 204 quando não há profissional cadastrado com o e-mail do usuário.
+    """
+
+    def get(self, request):
+        funcionario = (
+            _profissionais_com_trajetoria()
+            .filter(email__iexact=request.user.email)
+            .first()
+        )
+        if funcionario is None:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            PerfilProfissionalSerializer(funcionario, context={"request": request}).data
+        )

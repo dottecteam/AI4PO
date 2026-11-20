@@ -7,6 +7,7 @@ import {
   CircleUserRound,
   ShieldCheck,
   Network,
+  Users,
 } from "lucide-react"
 
 export const PAGINAS_PRINCIPAIS = [
@@ -14,6 +15,7 @@ export const PAGINAS_PRINCIPAIS = [
   { icone: MessagesSquare, label: "Novo Chat", rota: "/chatbot" },
   { icone: FolderOpen, label: "Projetos", rota: "/projetos" },
   { icone: Network, label: "Grafo Global", rota: "/grafo" },
+  { icone: Users, label: "Profissionais", rota: "/profissionais" },
   { icone: Loader, label: "Competências", rota: "/competencias" },
 ]
 
