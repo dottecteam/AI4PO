@@ -571,6 +571,10 @@ class ChatView(APIView):
                     message = rascunho  # é o que vai para o histórico, sem o "/reformatar"
                     intencao = "reformatar"
                     anterior = None  # comando explícito sempre gera uma versão nova
+                elif detectar_especificacao(message, documento_texto) is not None:
+                    # Especificação já estruturada vai para a validação determinística
+                    # (task #8-3) mais abaixo, e não para a reformatação.
+                    intencao, tipo = "conversar", "pbi"
                 else:
                     intencao, tipo = classificar_intencao(
                         message, ultima_foi_reformatacao=anterior is not None
