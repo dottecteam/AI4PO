@@ -3,6 +3,8 @@ import re
 import requests
 from decouple import config
 
+from .ollama_config import THINK
+
 OLLAMA_URL = config("OLLAMA_URL", default="http://host.docker.internal:11434")
 MODEL = config("OLLAMA_MODEL", default="llama3.2:3b")
 
@@ -14,6 +16,7 @@ def gerar_titulo(pergunta: str, resposta: str) -> str | None:
             json={
                 "model": MODEL,
                 "stream": False,
+                "think": THINK,
                 "options": {"temperature": 0.2, "num_predict": 24},
                 "messages": [
                     {

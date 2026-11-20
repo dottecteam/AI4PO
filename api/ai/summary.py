@@ -15,6 +15,7 @@ from decouple import config
 from django.db import connection
 
 from .models import Conversa
+from .ollama_config import THINK
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ def _chamar(system, user):
                 {"role": "user", "content": user},
             ],
             "stream": False,
+            "think": THINK,
             "options": {"num_ctx": NUM_CTX, "temperature": 0.2},
         },
         timeout=TIMEOUT,
