@@ -8,6 +8,7 @@ import re
 
 import requests
 from decouple import config
+from .ollama_config import THINK
 from django.db import transaction
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404
@@ -132,6 +133,7 @@ def _chamar_ollama(messages, com_tools=False):
         "model": MODEL,
         "messages": messages,
         "stream": False,
+        "think": THINK,
         "options": {"num_ctx": NUM_CTX, "temperature": 0.1},
     }
     if com_tools:
@@ -168,6 +170,7 @@ def _stream_ollama(messages):
         "model": MODEL,
         "messages": messages,
         "stream": True,
+        "think": THINK,
         "options": {"num_ctx": NUM_CTX, "temperature": 0.1},
     }
     with _http.post(
@@ -568,6 +571,10 @@ class ChatView(APIView):
                     message = rascunho  # é o que vai para o histórico, sem o "/reformatar"
                     intencao = "reformatar"
                     anterior = None  # comando explícito sempre gera uma versão nova
+                elif detectar_especificacao(message, documento_texto) is not None:
+                    # Especificação já estruturada vai para a validação determinística
+                    # (task #8-3) mais abaixo, e não para a reformatação.
+                    intencao, tipo = "conversar", "pbi"
                 else:
                     intencao, tipo = classificar_intencao(
                         message, ultima_foi_reformatacao=anterior is not None

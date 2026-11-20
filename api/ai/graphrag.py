@@ -16,6 +16,7 @@ from collections import defaultdict
 
 import requests
 from decouple import config
+from .ollama_config import THINK
 from django.db import transaction
 from django.db.models.functions import Length
 from pgvector.django import CosineDistance
@@ -55,6 +56,7 @@ def _chat(prompt, system="", num_predict=512, temperature=0.0, formato=None, sto
         "model": MODELO_GRAFO,
         "messages": messages,
         "stream": False,
+        "think": THINK,
         "keep_alive": KEEP_ALIVE,
         "options": opts,
     }

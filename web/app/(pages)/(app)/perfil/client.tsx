@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import Link from "next/link"
 import {
   LogOut,
   Mail,
@@ -11,6 +12,9 @@ import {
 
 import { useAuth } from "@/app/contexts/AuthContext"
 import { mensagemDeErro, sair } from "@/app/services/API/usuarios"
+import { profissionalService } from "@/app/services/API/ProfissionalService"
+import TrajetoriaProfissional from "@/app/components/app/profissionais/TrajetoriaProfissional"
+import type { PerfilProfissional } from "@/app/types/api/profissional"
 
 // "Maria Souza Lima" -> "ML"; "Maria" -> "M"
 function iniciais(nome: string) {
@@ -25,6 +29,27 @@ function Perfil() {
   const { usuario } = useAuth()
   const [saindo, setSaindo] = useState(false)
   const [erro, setErro] = useState("")
+  // undefined = carregando; null = nenhum profissional vinculado ao e-mail
+  const [trajetoria, setTrajetoria] = useState<PerfilProfissional | null | undefined>(undefined)
+  const [erroTrajetoria, setErroTrajetoria] = useState(false)
+
+  useEffect(() => {
+    if (!usuario) return
+    let ativo = true
+
+    profissionalService
+      .buscarMeuPerfil()
+      .then((dados) => {
+        if (ativo) setTrajetoria(dados)
+      })
+      .catch(() => {
+        if (ativo) setErroTrajetoria(true)
+      })
+
+    return () => {
+      ativo = false
+    }
+  }, [usuario])
 
   const aoSair = async () => {
     setSaindo(true)
@@ -169,6 +194,45 @@ function Perfil() {
                   </div>
                 </div>
               </div>
+            </section>
+
+            <section
+              aria-label="Minha trajetória profissional"
+              className="w-full flex flex-col gap-4"
+            >
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h3 className="text-white font-semibold text-base">
+                    Minha trajetória profissional
+                  </h3>
+                  <p className="text-secondary text-xs mt-1">
+                    Projetos, papéis e competências vinculados ao seu e-mail.
+                  </p>
+                </div>
+                {trajetoria && (
+                  <Link
+                    href={`/profissionais/${trajetoria.id}`}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Ver perfil profissional
+                  </Link>
+                )}
+              </div>
+
+              {erroTrajetoria ? (
+                <p role="alert" className="text-sm text-red-300">
+                  Não foi possível carregar sua trajetória profissional.
+                </p>
+              ) : trajetoria === undefined ? (
+                <p className="text-secondary text-sm">Carregando...</p>
+              ) : trajetoria === null ? (
+                <p className="text-secondary text-sm rounded-xl border border-gray-800/50 bg-(--surface-elevated) p-4">
+                  Nenhum profissional cadastrado com o seu e-mail. Peça a um
+                  administrador para registrar suas competências e participações.
+                </p>
+              ) : (
+                <TrajetoriaProfissional perfil={trajetoria} />
+              )}
             </section>
 
             <section
