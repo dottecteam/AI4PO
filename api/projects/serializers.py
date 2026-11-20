@@ -3,6 +3,7 @@ from pathlib import Path
 from rest_framework import serializers
 
 from .models import Projeto, Documento, Participacao
+from .permissions import pode_gerenciar_projeto
 from .validators import validate_document_upload
 
 
@@ -125,10 +126,15 @@ class ProfissionalResumoSerializer(serializers.Serializer):
 
 class ParticipacaoPerfilSerializer(serializers.ModelSerializer):
     projeto = serializers.SerializerMethodField()
+    pode_editar = serializers.SerializerMethodField()
 
     class Meta:
         model = Participacao
-        fields = ["id", "papel", "criado_em", "projeto"]
+        fields = ["id", "papel", "criado_em", "projeto", "pode_editar"]
+
+    def get_pode_editar(self, participacao):
+        request = self.context.get("request")
+        return pode_gerenciar_projeto(getattr(request, "user", None), participacao.projeto)
 
     def get_projeto(self, participacao):
         projeto = participacao.projeto
@@ -141,6 +147,8 @@ class PerfilProfissionalSerializer(serializers.Serializer):
     email = serializers.EmailField()
     competencias = serializers.SerializerMethodField()
     participacoes = serializers.SerializerMethodField()
+    # Projetos em que o usuário logado pode registrar/alterar participações (Task #15-3)
+    projetos_gerenciaveis = serializers.SerializerMethodField()
 
     def get_competencias(self, funcionario):
         return [
@@ -158,3 +166,13 @@ class PerfilProfissionalSerializer(serializers.Serializer):
         return ParticipacaoPerfilSerializer(
             participacoes, many=True, context=self.context
         ).data
+
+    def get_projetos_gerenciaveis(self, funcionario):
+        request = self.context.get("request")
+        usuario = getattr(request, "user", None)
+        if not (usuario and usuario.is_authenticated):
+            return []
+        projetos = Projeto.objects.order_by("titulo")
+        if not usuario.is_staff:
+            projetos = projetos.filter(usuario_po=usuario)
+        return [{"id": p.id, "titulo": p.titulo} for p in projetos]
