@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import SimilarityCheckView, ChatView
+from .views import AcaoChatView, SimilarityCheckView, ChatView
 from .views_busca import BuscaSemanticaView
 from .views_conversas import ConversaDetalheView, ConversaListView, ConversaExcluirView
 from .views_export import ConversaExportarPDFView
@@ -11,6 +11,7 @@ from .views_dashboard import GraficosDashboardView, ResumoDashboardView
 
 urlpatterns = [
     path("chat/", ChatView.as_view(), name="chat"),
+    path("chat/acoes/<int:mensagem_id>/<str:decisao>/", AcaoChatView.as_view(), name="chat-acao"),
     path("busca/", BuscaSemanticaView.as_view(), name="busca-semantica"),
     path("conversas/", ConversaListView.as_view(), name="conversa-list"),
     path("conversas/<int:conversa_id>/mensagens/", ConversaDetalheView.as_view(), name="conversa-detalhe"),

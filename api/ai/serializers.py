@@ -13,10 +13,19 @@ class MensagemChatSerializer(serializers.ModelSerializer):
     conteudo = serializers.SerializerMethodField()
     fontes = serializers.SerializerMethodField()
     validacao = serializers.SerializerMethodField()
+    pergunta = serializers.SerializerMethodField()
+    acao = serializers.SerializerMethodField()
 
     class Meta:
         model = MensagemChat
-        fields = ("id", "papel", "conteudo", "anexo_nome", "criado_em", "fontes", "validacao")
+        fields = ("id", "papel", "conteudo", "anexo_nome", "criado_em", "fontes", "validacao", "pergunta", "acao")
+
+    def get_pergunta(self, obj):
+        return (obj.metadata or {}).get("pergunta")
+
+    def get_acao(self, obj):
+        acao = (obj.metadata or {}).get("acao")
+        return {**acao, "mensagem_id": obj.id} if acao else None
 
     def get_validacao(self, obj):
         return (obj.metadata or {}).get("validacao")
