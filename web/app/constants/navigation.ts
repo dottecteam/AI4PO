@@ -3,7 +3,6 @@ import {
   MessagesSquare,
   FolderOpen,
   Loader,
-  Settings,
   CircleUserRound,
   ShieldCheck,
   Network,
@@ -23,6 +22,7 @@ export const PAGINAS_CONFIG = [
   { icone: CircleUserRound, label: "Meu Perfil", rota: "/perfil" },
 ]
 
+// Só aparecem no menu para quem tem is_admin
 export const PAGINAS_ADMIN = [
   { icone: ShieldCheck, label: "Administração", rota: "/admin/usuarios" },
 ]

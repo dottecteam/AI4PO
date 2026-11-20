@@ -23,6 +23,8 @@ export const epicos: Epico[] = [
             "O cliente deve conseguir identificar o status atual de qualquer solicitação sem intervenção humana.",
         ],
         createdAt: "2026-02-11T10:00:00.000Z",
+        totalFeatures: 2,
+        totalPbis: 3,
     },
     {
         id: 2,
@@ -44,6 +46,8 @@ export const epicos: Epico[] = [
             "O cliente deve poder configurar quais canais de notificação deseja utilizar.",
         ],
         createdAt: "2026-02-18T14:20:00.000Z",
+        totalFeatures: 1,
+        totalPbis: 1,
     },
     {
         id: 3,
@@ -66,5 +70,7 @@ export const epicos: Epico[] = [
             "Deve ser possível rastrear a relação entre PBI, Feature e Épico.",
         ],
         createdAt: "2026-03-06T09:15:00.000Z",
+        totalFeatures: 1,
+        totalPbis: 2,
     },
 ];

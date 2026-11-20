@@ -40,6 +40,7 @@ class SimilarityServiceUnitTests(SimpleTestCase):
             "ai.similarity.gerar_embeddings", return_value=[vetor]
         ) as gerar:
             resultado = similarity.gerar_vetor_de_requisito(
+                "  Como PO, desejo exportar requisitos.  "
             )
 
         self.assertEqual(resultado, vetor)
@@ -58,9 +59,9 @@ class SimilarityServiceUnitTests(SimpleTestCase):
             with self.subTest(caso=caso), patch(
                 "ai.similarity.gerar_embeddings", return_value=vetores
             ):
-                with self.assertRaisesRegex(
-                    FalhaDeEmbeddingError,
-                ):
+                # assertRaisesRegex ficou sem regex quando o raise passou a
+                # vir sem mensagem; o contrato provado aqui e o tipo da falha.
+                with self.assertRaises(FalhaDeEmbeddingError):
                     similarity.gerar_vetor_de_requisito("requisito válido")
 
     def test_busca_com_texto_invalido_nao_chama_embeddings_nem_banco(self):
@@ -68,7 +69,14 @@ class SimilarityServiceUnitTests(SimpleTestCase):
             with self.subTest(texto=texto), patch(
                 "ai.similarity.gerar_embeddings"
             ) as gerar:
-                self.assertEqual(similarity.verificar_similaridade(texto), [])
+                # Instancia nao salva: SimpleTestCase nao pode tocar no banco, e
+                # texto invalido retorna antes de qualquer queryset.
+                self.assertEqual(
+                    similarity.verificar_similaridade(
+                        texto, UsuarioPO(email="unit@pro4tech.com", nome="PO Unit")
+                    ),
+                    [],
+                )
                 gerar.assert_not_called()
 
 
@@ -126,7 +134,7 @@ class SimilarityPgvectorIntegrationTests(TestCase):
             "ai.similarity.gerar_embeddings",
             return_value=[self.vetor_consulta],
         ) as gerar:
-            resultado = similarity.verificar_similaridade(texto)
+            resultado = similarity.verificar_similaridade(texto, self.usuario)
         gerar.assert_called_once_with([texto])
         return resultado
 

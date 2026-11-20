@@ -3,7 +3,7 @@ from django.urls import path
 from .views import DocumentoUploadView, DocumentoListView, DocumentoReprocessarView, DocumentoDeleteView
 from projects.views import ProjetoListCreateView, ProjetoDataView
 from projects.views import ParticipacaoListCreateView, ParticipacaoDataView
-from projects.views import ProfissionalListView, ProfissionalPerfilView, MeuPerfilProfissionalView
+from projects.views import ProfissionalPerfilView, MeuPerfilProfissionalView
 
 urlpatterns = [
     path("projects/<int:project_id>/documents/", DocumentoListView.as_view(), name="document-list"),
@@ -14,7 +14,7 @@ urlpatterns = [
     path('projetos/<int:pk>/', ProjetoDataView.as_view(), name='projeto_detail'),
     path("participacoes/", ParticipacaoListCreateView.as_view(), name="participacao-list-create"),
     path("participacoes/<int:pk>/", ParticipacaoDataView.as_view(), name="participacao-detail"),
-    path("profissionais/", ProfissionalListView.as_view(), name="profissional-list"),
+    # GET/POST /api/profissionais/ e /busca/ ficam em users.urls_profissionais (Task #14)
     path("profissionais/me/", MeuPerfilProfissionalView.as_view(), name="profissional-me"),
     path("profissionais/<int:pk>/", ProfissionalPerfilView.as_view(), name="profissional-perfil"),
 ]

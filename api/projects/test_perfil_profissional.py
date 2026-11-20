@@ -38,13 +38,6 @@ class PerfilProfissionalTests(TestCase):
             {("Portal", "Dev"), ("Portal", "Tech Lead"), ("App", "Dev")},
         )
 
-    def test_lista_com_busca_por_competencia(self):
-        r = self.client.get("/api/profissionais/?busca=djan")
-        self.assertEqual(r.status_code, 200)
-        dados = r.json()
-        self.assertEqual([p["nome"] for p in dados], ["Ana"])
-        self.assertEqual(dados[0]["total_projetos"], 2)
-
     def test_meu_perfil_vinculado_pelo_email(self):
         r = self.client.get("/api/profissionais/me/")
         self.assertEqual(r.status_code, 200)
