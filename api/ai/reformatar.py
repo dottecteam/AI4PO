@@ -3,6 +3,7 @@ import logging
 
 import requests
 from decouple import config
+from .ollama_config import THINK
 
 from .models import MensagemChat
 from .prompts import montar_system_prompt
@@ -98,6 +99,7 @@ def classificar_intencao(message, ultima_foi_reformatacao):
                 ],
                 "format": SCHEMA_INTENCAO,
                 "stream": False,
+                "think": THINK,
                 "keep_alive": KEEP_ALIVE,
                 # a resposta é um JSON minúsculo; o limite impede que o
                 # roteador gaste tempo à toa
@@ -170,6 +172,7 @@ def gerar_reformatacao(mensagem, tipo, anterior=None):
                 "model": MODEL,
                 "messages": messages,
                 "stream": False,
+                "think": THINK,
                 "keep_alive": KEEP_ALIVE,
                 "options": {"temperature": 0.1, "num_predict": NUM_PREDICT},
             },

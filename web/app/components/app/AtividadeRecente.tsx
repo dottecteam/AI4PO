@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Pencil,
   Trash2,
+  Users,
 } from "lucide-react"
 
 type Atividade = {
@@ -28,6 +29,9 @@ const ICONES: Record<string, LucideIcon> = {
   documento_excluido: Trash2,
   conversa_excluida: MessageSquare,
   projeto_renomeado: Pencil,
+  participacao_criada: Users,
+  participacao_editada: Pencil,
+  participacao_excluida: Trash2,
 }
 function formatarDataCurta(iso: string) {
   const partes = new Intl.DateTimeFormat("pt-BR", {
@@ -108,7 +112,7 @@ export default function AtividadesRecentes() {
                         {a.alvo}
                       </span>
                     )}
-                    {a.acao === "projeto_renomeado" && a.detalhe && (
+                    {(a.acao === "projeto_renomeado" || a.acao === "participacao_editada") && a.detalhe && (
                       <>
                         {" para "}
                         <span className="font-semibold text-orange-500">

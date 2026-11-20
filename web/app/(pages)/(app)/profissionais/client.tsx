@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Plus, RefreshCw, Search, X } from "lucide-react"
 import {
   buscarProfissionais,
@@ -59,7 +60,12 @@ function CartaoResultado({
             {posicao}
           </span>
           <div className="flex flex-col min-w-0">
-            <span className="text-white text-sm sm:text-base font-medium truncate">{p.nome}</span>
+            <Link
+              href={`/profissionais/${p.id}`}
+              className="text-white text-sm sm:text-base font-medium truncate hover:text-primary transition-colors"
+            >
+              {p.nome}
+            </Link>
             <span className="text-secondary text-xs sm:text-sm truncate">{p.email}</span>
           </div>
         </div>
@@ -362,7 +368,12 @@ function Profissionais() {
                         className="bg-(--surface-elevated) border border-gray-800/50 rounded-xl px-4 py-3 flex flex-col gap-2"
                       >
                         <div className="flex flex-col min-w-0">
-                          <span className="text-white text-sm sm:text-base font-medium truncate">{p.nome}</span>
+                          <Link
+                            href={`/profissionais/${p.id}`}
+                            className="text-white text-sm sm:text-base font-medium truncate hover:text-primary transition-colors"
+                          >
+                            {p.nome}
+                          </Link>
                           <span className="text-secondary text-xs sm:text-sm truncate">{p.email}</span>
                         </div>
                         <div className="flex flex-wrap gap-2">

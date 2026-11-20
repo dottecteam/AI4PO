@@ -1,8 +1,11 @@
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 import os
 
 from rest_framework import generics, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -13,8 +16,15 @@ from ai.extraction import (
     FalhaDeDecodificacaoError,
 )
 
-from .models import Projeto, Documento
-from .serializers import ProjetoSerializer, DocumentoUploadSerializer
+from .models import Projeto, Documento, Participacao
+from .serializers import (
+    ProjetoSerializer,
+    DocumentoUploadSerializer,
+    ParticipacaoSerializer,
+    PerfilProfissionalSerializer,
+)
+from users.models import Funcionario
+from .permissions import PodeGerenciarParticipacao, pode_gerenciar_projeto
 from .upload_handlers import DocumentUploadSizeHandler
 from .validators import MAX_UPLOAD_SIZE_BYTES, UPLOAD_SIZE_MESSAGE
 from atividades.servico import registrar
@@ -287,4 +297,103 @@ class DocumentoDeleteView(APIView):
         return Response(
             {"message": "Documento excluído com sucesso."},
             status=status.HTTP_200_OK,
+        )
+
+
+# -------------------------
+# Participacao
+# -------------------------
+def _exigir_permissao_no_projeto(usuario, projeto):
+    if not pode_gerenciar_projeto(usuario, projeto):
+        raise PermissionDenied(PodeGerenciarParticipacao.message)
+
+
+class ParticipacaoListCreateView(generics.ListCreateAPIView):
+    serializer_class = ParticipacaoSerializer
+
+    def get_queryset(self):
+        queryset = Participacao.objects.select_related("funcionario", "projeto")
+
+        funcionario = self.request.query_params.get("funcionario")
+        projeto = self.request.query_params.get("projeto")
+
+        if funcionario:
+            queryset = queryset.filter(funcionario_id=funcionario)
+        if projeto:
+            queryset = queryset.filter(projeto_id=projeto)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        _exigir_permissao_no_projeto(self.request.user, serializer.validated_data["projeto"])
+        participacao = serializer.save(registrado_por=self.request.user)
+        registrar(
+            self.request.user,
+            "participacao_criada",
+            str(participacao),
+        )
+
+class ParticipacaoDataView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Participacao.objects.select_related("funcionario", "projeto")
+    serializer_class = ParticipacaoSerializer
+    permission_classes = [IsAuthenticated, PodeGerenciarParticipacao]
+
+    def perform_update(self, serializer):
+        # Ao mover o registro para outro projeto, o usuário também precisa gerenciá-lo
+        novo_projeto = serializer.validated_data.get("projeto")
+        if novo_projeto is not None:
+            _exigir_permissao_no_projeto(self.request.user, novo_projeto)
+        antiga = str(serializer.instance)
+        participacao = serializer.save()
+        registrar(
+            self.request.user,
+            "participacao_editada",
+            antiga,
+            str(participacao),
+        )
+
+    def perform_destroy(self, instance):
+        descricao = str(instance)
+        instance.delete()
+        registrar(self.request.user, "participacao_excluida", descricao)
+
+
+# -------------------------
+# Perfil do profissional (Task #15-2)
+# -------------------------
+def _profissionais_com_trajetoria():
+    return Funcionario.objects.prefetch_related(
+        "competencias",
+        Prefetch(
+            "participacoes",
+            queryset=Participacao.objects.select_related("projeto"),
+        ),
+    )
+
+
+class ProfissionalPerfilView(generics.RetrieveAPIView):
+    """Perfil do profissional: projetos, papéis e competências."""
+
+    serializer_class = PerfilProfissionalSerializer
+
+    def get_queryset(self):
+        return _profissionais_com_trajetoria()
+
+
+class MeuPerfilProfissionalView(APIView):
+    """Perfil profissional do usuário logado, vinculado pelo e-mail.
+
+    Responde 204 quando não há profissional cadastrado com o e-mail do usuário.
+    """
+
+    def get(self, request):
+        funcionario = (
+            _profissionais_com_trajetoria()
+            .filter(email__iexact=request.user.email)
+            .first()
+        )
+        if funcionario is None:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            PerfilProfissionalSerializer(funcionario, context={"request": request}).data
         )
