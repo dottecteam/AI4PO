@@ -24,6 +24,20 @@ export interface ParticipacaoPerfil {
     titulo: string
     status: ProjetoStatus
   }
+  // O usuário logado é o PO do projeto ou administrador (Task #15-3)
+  pode_editar: boolean
+}
+
+export interface ProjetoGerenciavel {
+  id: number
+  titulo: string
+}
+
+// Corpo de criação/edição de uma participação
+export interface ParticipacaoInput {
+  funcionario: number
+  projeto: number
+  papel: string
 }
 
 // Perfil completo: competências e trajetória em projetos
@@ -33,4 +47,6 @@ export interface PerfilProfissional {
   email: string
   competencias: Competencia[]
   participacoes: ParticipacaoPerfil[]
+  // Projetos em que o usuário logado pode registrar/alterar participações
+  projetos_gerenciaveis: ProjetoGerenciavel[]
 }

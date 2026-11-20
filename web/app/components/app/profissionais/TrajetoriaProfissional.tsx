@@ -1,7 +1,10 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
-import { BriefcaseBusiness, FolderOpen, Sparkles } from "lucide-react"
+import { BriefcaseBusiness, FolderOpen, Pencil, Plus, Sparkles, Trash2 } from "lucide-react"
+import ParticipacaoModal from "./ParticipacaoModal"
+import { mensagemDaApi, participacaoService } from "@/app/services/API/ProfissionalService"
 import type { ProjetoStatus } from "@/app/types/api/projeto"
 import type { ParticipacaoPerfil, PerfilProfissional } from "@/app/types/api/profissional"
 
@@ -33,9 +36,37 @@ function formatarData(iso: string) {
 
 type Props = {
   perfil: PerfilProfissional
+  // Quando informado, habilita adicionar/editar/excluir participações (Task #15-3).
+  // Os botões só aparecem para o PO do projeto ou para o administrador.
+  onAlterado?: () => void
 }
 
-export default function TrajetoriaProfissional({ perfil }: Props) {
+type Edicao = { participacao?: ParticipacaoPerfil }
+
+export default function TrajetoriaProfissional({ perfil, onAlterado }: Props) {
+  const [edicao, setEdicao] = useState<Edicao | null>(null)
+  const [excluindo, setExcluindo] = useState<ParticipacaoPerfil | null>(null)
+  const [processando, setProcessando] = useState(false)
+  const [erroExclusao, setErroExclusao] = useState("")
+
+  const gerenciavel = !!onAlterado
+  const podeAdicionar = gerenciavel && perfil.projetos_gerenciaveis.length > 0
+
+  const confirmarExclusao = async () => {
+    if (!excluindo || processando) return
+    setProcessando(true)
+    setErroExclusao("")
+    try {
+      await participacaoService.excluir(excluindo.id)
+      setExcluindo(null)
+      onAlterado?.()
+    } catch (e) {
+      setErroExclusao(mensagemDaApi(e, "Não foi possível excluir a participação."))
+    } finally {
+      setProcessando(false)
+    }
+  }
+
   const projetos = agruparPorProjeto(perfil.participacoes)
   const totalPapeis = new Set(perfil.participacoes.map((p) => p.papel.toLowerCase())).size
 
@@ -72,9 +103,21 @@ export default function TrajetoriaProfissional({ perfil }: Props) {
       </section>
 
       <section aria-label="Projetos e papéis" className="flex flex-col gap-3">
-        <div>
-          <h3 className="text-white font-semibold text-base">Projetos e papéis</h3>
-          <p className="text-secondary text-xs mt-1">Trajetória do profissional nos projetos da plataforma.</p>
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h3 className="text-white font-semibold text-base">Projetos e papéis</h3>
+            <p className="text-secondary text-xs mt-1">Trajetória do profissional nos projetos da plataforma.</p>
+          </div>
+          {podeAdicionar && (
+            <button
+              type="button"
+              onClick={() => setEdicao({})}
+              className="h-9 px-3 rounded-lg flex items-center gap-1.5 text-sm font-medium text-white bg-primary hover:bg-primary-dark transition-colors cursor-pointer"
+            >
+              <Plus size={16} />
+              Adicionar participação
+            </button>
+          )}
         </div>
 
         {projetos.length === 0 ? (
@@ -104,9 +147,36 @@ export default function TrajetoriaProfissional({ perfil }: Props) {
                   {papeis.map((participacao) => (
                     <li key={participacao.id} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
                       <span className="text-sm text-white break-words">{participacao.papel}</span>
-                      <span className="text-xs text-secondary shrink-0">
-                        Desde {formatarData(participacao.criado_em)}
-                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-secondary">
+                          Desde {formatarData(participacao.criado_em)}
+                        </span>
+                        {gerenciavel && participacao.pode_editar && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setEdicao({ participacao })}
+                              aria-label={`Editar papel ${participacao.papel} em ${projeto.titulo}`}
+                              title="Editar"
+                              className="p-1.5 rounded-md text-secondary hover:text-white hover:bg-(--surface-base) transition-colors cursor-pointer"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setErroExclusao("")
+                                setExcluindo(participacao)
+                              }}
+                              aria-label={`Excluir papel ${participacao.papel} em ${projeto.titulo}`}
+                              title="Excluir"
+                              className="p-1.5 rounded-md text-secondary hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -115,6 +185,66 @@ export default function TrajetoriaProfissional({ perfil }: Props) {
           </ul>
         )}
       </section>
+
+      {edicao && onAlterado && (
+        <ParticipacaoModal
+          funcionarioId={perfil.id}
+          nomeProfissional={perfil.nome}
+          projetos={perfil.projetos_gerenciaveis}
+          participacao={edicao.participacao}
+          onFechar={() => setEdicao(null)}
+          onSalvo={() => {
+            setEdicao(null)
+            onAlterado()
+          }}
+        />
+      )}
+
+      {excluindo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="titulo-excluir-participacao"
+            className="w-full max-w-md bg-(--surface-base) border border-gray-800/50 rounded-2xl p-6 flex flex-col gap-4 shadow-2xl"
+          >
+            <div className="flex flex-col gap-1">
+              <h2 id="titulo-excluir-participacao" className="text-white text-lg font-semibold">
+                Excluir participação?
+              </h2>
+              <p className="text-secondary text-sm">
+                {perfil.nome} deixará de constar como &ldquo;{excluindo.papel}&rdquo; em{" "}
+                {excluindo.projeto.titulo}. Essa ação não pode ser desfeita.
+              </p>
+            </div>
+
+            {erroExclusao && (
+              <p role="alert" className="text-sm text-red-300">
+                {erroExclusao}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setExcluindo(null)}
+                disabled={processando}
+                className="h-10 px-4 rounded-lg text-sm text-white border border-gray-700/50 hover:bg-(--surface-elevated) transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarExclusao}
+                disabled={processando}
+                className="h-10 px-4 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {processando ? "Excluindo..." : "Excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

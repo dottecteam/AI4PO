@@ -3,7 +3,9 @@ from django.shortcuts import get_object_or_404
 import os
 
 from rest_framework import generics, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -23,6 +25,7 @@ from .serializers import (
     PerfilProfissionalSerializer,
 )
 from users.models import Funcionario
+from .permissions import PodeGerenciarParticipacao, pode_gerenciar_projeto
 from .upload_handlers import DocumentUploadSizeHandler
 from .validators import MAX_UPLOAD_SIZE_BYTES, UPLOAD_SIZE_MESSAGE
 from atividades.servico import registrar
@@ -289,6 +292,11 @@ class DocumentoDeleteView(APIView):
 # -------------------------
 # Participacao
 # -------------------------
+def _exigir_permissao_no_projeto(usuario, projeto):
+    if not pode_gerenciar_projeto(usuario, projeto):
+        raise PermissionDenied(PodeGerenciarParticipacao.message)
+
+
 class ParticipacaoListCreateView(generics.ListCreateAPIView):
     serializer_class = ParticipacaoSerializer
 
@@ -306,6 +314,7 @@ class ParticipacaoListCreateView(generics.ListCreateAPIView):
         return queryset
 
     def perform_create(self, serializer):
+        _exigir_permissao_no_projeto(self.request.user, serializer.validated_data["projeto"])
         participacao = serializer.save(registrado_por=self.request.user)
         registrar(
             self.request.user,
@@ -316,8 +325,13 @@ class ParticipacaoListCreateView(generics.ListCreateAPIView):
 class ParticipacaoDataView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Participacao.objects.select_related("funcionario", "projeto")
     serializer_class = ParticipacaoSerializer
+    permission_classes = [IsAuthenticated, PodeGerenciarParticipacao]
 
     def perform_update(self, serializer):
+        # Ao mover o registro para outro projeto, o usuário também precisa gerenciá-lo
+        novo_projeto = serializer.validated_data.get("projeto")
+        if novo_projeto is not None:
+            _exigir_permissao_no_projeto(self.request.user, novo_projeto)
         antiga = str(serializer.instance)
         participacao = serializer.save()
         registrar(

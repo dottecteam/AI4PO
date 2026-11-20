@@ -21,6 +21,8 @@ export default function PerfilProfissionalPagina() {
   const [perfil, setPerfil] = useState<PerfilProfissional | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState("")
+  // Incrementado após cada alteração de participação para recarregar o perfil
+  const [recarga, setRecarga] = useState(0)
 
   useEffect(() => {
     let ativo = true
@@ -43,7 +45,7 @@ export default function PerfilProfissionalPagina() {
     return () => {
       ativo = false
     }
-  }, [id])
+  }, [id, recarga])
 
   return (
     <div className="w-full h-full flex flex-col flex-1 bg-background">
@@ -78,7 +80,7 @@ export default function PerfilProfissionalPagina() {
               </div>
             </section>
 
-            <TrajetoriaProfissional perfil={perfil} />
+            <TrajetoriaProfissional perfil={perfil} onAlterado={() => setRecarga((n) => n + 1)} />
           </div>
         )}
       </main>

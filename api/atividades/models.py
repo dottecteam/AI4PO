@@ -10,6 +10,9 @@ ACOES = {
     "documento_excluido": "excluiu o documento",
     "conversa_excluida": "excluiu a conversa",
     "projeto_renomeado": "renomeou o projeto",
+    "participacao_criada": "registrou a participação",
+    "participacao_editada": "editou a participação",
+    "participacao_excluida": "excluiu a participação",
 }
 
 
