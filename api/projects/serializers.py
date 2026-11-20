@@ -105,3 +105,56 @@ class ParticipacaoSerializer(serializers.ModelSerializer):
             )
 
         return data
+
+# -------------------------
+# Perfil do profissional (Task #15-2)
+# -------------------------
+class ProfissionalResumoSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    nome = serializers.CharField()
+    email = serializers.EmailField()
+    competencias = serializers.SerializerMethodField()
+    total_projetos = serializers.SerializerMethodField()
+
+    def get_competencias(self, funcionario):
+        return [c.nome for c in funcionario.competencias.all()]
+
+    def get_total_projetos(self, funcionario):
+        return len({p.projeto_id for p in funcionario.participacoes.all()})
+
+
+class ParticipacaoPerfilSerializer(serializers.ModelSerializer):
+    projeto = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Participacao
+        fields = ["id", "papel", "criado_em", "projeto"]
+
+    def get_projeto(self, participacao):
+        projeto = participacao.projeto
+        return {"id": projeto.id, "titulo": projeto.titulo, "status": projeto.status}
+
+
+class PerfilProfissionalSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    nome = serializers.CharField()
+    email = serializers.EmailField()
+    competencias = serializers.SerializerMethodField()
+    participacoes = serializers.SerializerMethodField()
+
+    def get_competencias(self, funcionario):
+        return [
+            {"id": c.id, "nome": c.nome}
+            for c in sorted(funcionario.competencias.all(), key=lambda c: c.nome.lower())
+        ]
+
+    def get_participacoes(self, funcionario):
+        # Trajetória do mais recente para o mais antigo
+        participacoes = sorted(
+            funcionario.participacoes.all(),
+            key=lambda p: p.criado_em,
+            reverse=True,
+        )
+        return ParticipacaoPerfilSerializer(
+            participacoes, many=True, context=self.context
+        ).data
