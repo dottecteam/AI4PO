@@ -5,6 +5,7 @@ import { MessageSquare } from "lucide-react"
 
 import AtividadesRecentes from "@/app/components/app/AtividadeRecente"
 import DashboardCards from "@/app/components/app/DashboardCards"
+import DashboardGraficos from "@/app/components/app/DashboardGraficos"
 import { useAuth } from "@/app/contexts/AuthContext"
 
 export default function Dashboard() {
@@ -36,6 +37,7 @@ export default function Dashboard() {
 
       <main className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-6">
         <DashboardCards />
+        <DashboardGraficos />
         <AtividadesRecentes />
       </main>
     </div>
