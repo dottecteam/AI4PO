@@ -18,6 +18,7 @@ import { api } from "@/app/services/API/api"
 import CartaoValidacao, {
   type Validacao,
 } from "@/app/components/app/CartaoValidacao"
+import CartaoAcao, { type AcaoChat } from "@/app/components/app/CartaoAcao"
 import { comandos } from "@/app/constants/commands"
 import { formatarHora } from "@/app/utils/formatarHora"
 
@@ -37,11 +38,16 @@ type Fonte = {
   similaridade: number
 }
 
+// Pergunta de esclarecimento do fluxo de cadastros, com respostas sugeridas
+type Pergunta = { texto: string; opcoes: string[] }
+
 type Mensagem = {
   tipo: "usuario" | "agente" | "anexo"
   texto: string
   anexo?: string
   validacao?: Validacao
+  pergunta?: Pergunta
+  acao?: AcaoChat
   fontes?: Fonte[]
   criado_em?: string
   interrompido?: boolean
@@ -54,6 +60,8 @@ type MensagemApi = {
   criado_em?: string
   fontes?: Fonte[]
   validacao?: Validacao | null
+  pergunta?: Pergunta | null
+  acao?: AcaoChat | null
 }
 
 function getCookie(name: string) {
@@ -113,6 +121,8 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           criado_em: m.criado_em,
           fontes: m.fontes?.length ? m.fontes : undefined,
           validacao: m.validacao ?? undefined,
+          pergunta: m.pergunta ?? undefined,
+          acao: m.acao ?? undefined,
         }))
         setMensagens(carregadas)
       })
@@ -217,8 +227,10 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     }
   }
 
-  const enviarMensagem = async () => {
-    if ((!mensagem.trim() && anexos.length === 0) || carregando) return
+  // `textoForcado`: resposta escolhida num botão de opção (não usa o campo de texto)
+  const enviarMensagem = async (textoForcado?: string) => {
+    const mensagem_ = textoForcado ?? mensagem
+    if ((!mensagem_.trim() && anexos.length === 0) || carregando) return
 
     if (anexos.length > 1) {
       alert("Por enquanto só é possível enviar um documento por mensagem.")
@@ -226,7 +238,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     }
 
     const arquivoParaEnvio = anexos[0]
-    const mensagemUsuario = mensagem
+    const mensagemUsuario = mensagem_
     setAnexos([])
 
     // anexo sozinho, sem texto: só mostra o card, não chama o backend
@@ -320,6 +332,8 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           texto: data.message,
           fontes: data.fontes ?? [], // origem dos trechos usados na resposta
           validacao: data.validacao ?? undefined, // cartão da validação
+          pergunta: data.pergunta ?? undefined, // pergunta do fluxo de cadastros
+          acao: data.acao ?? undefined, // cadastro aguardando confirmação
           criado_em: data.criado_em ?? new Date().toISOString(),
         },
       ])
@@ -494,6 +508,29 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
                 ) : (
                   msg.texto
                 ))}
+              {msg.acao && (
+                <CartaoAcao
+                  acao={msg.acao}
+                  onAtualizada={(acao) =>
+                    setMensagens((prev) => prev.map((m, i) => (i === index ? { ...m, acao } : m)))
+                  }
+                />
+              )}
+              {msg.pergunta && msg.pergunta.opcoes.length > 0 && index === mensagens.length - 1 && (
+                <div className="mt-3 flex flex-wrap gap-2" aria-label="Respostas sugeridas">
+                  {msg.pergunta.opcoes.map((opcao) => (
+                    <button
+                      key={opcao}
+                      type="button"
+                      onClick={() => enviarMensagem(opcao)}
+                      disabled={carregando}
+                      className="h-8 px-3 rounded-full text-xs text-white border border-primary/40 bg-primary/10 hover:bg-primary/20 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {opcao}
+                    </button>
+                  ))}
+                </div>
+              )}
               {msg.fontes && msg.fontes.length > 0 && (
                 <details className="mt-3 pt-2 border-t border-gray-700/50 text-xs text-secondary">
                   <summary className="cursor-pointer select-none font-medium hover:text-white">
@@ -665,7 +702,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           ) : (
             <button
               type="button"
-              onClick={enviarMensagem}
+              onClick={() => enviarMensagem()}
               disabled={!mensagem.trim() && anexos.length === 0}
               className="w-12 h-12 md:w-14 md:h-14 bg-primary rounded-xl flex items-center justify-center hover:bg-primary-dark transition-colors duration-200 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer"
             >

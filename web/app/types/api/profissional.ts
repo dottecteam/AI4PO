@@ -5,6 +5,11 @@ export type CompetenciaResumo = {
   nome: string
 }
 
+// Competência na tela de gerenciamento, com quantos profissionais a possuem
+export type CompetenciaGerenciada = CompetenciaResumo & {
+  total_profissionais: number
+}
+
 export type Profissional = {
   id: number
   nome: string

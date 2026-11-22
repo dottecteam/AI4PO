@@ -7,4 +7,8 @@ export const comandos = [
     comando: "/reformatar",
     descricao: "Reformatar requisitos para garantir padronização.",
   },
+  {
+    comando: "/cadastrar",
+    descricao: "Cadastrar projeto, profissional, competência ou login de PO pelo chat.",
+  },
 ]
