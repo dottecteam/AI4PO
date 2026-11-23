@@ -17,14 +17,15 @@ from ai.benchmark_similarity import (
 )
 
 
+# Caminho do dataset no repositorio: definido em nivel de modulo para que o
+# skipUnless abaixo possa usa-lo (o decorator roda durante a criacao da classe).
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DATASET_CSV = REPO_ROOT / "docs" / "technical-docs" / "resultados-benchmark-similaridade.csv"
+
+
 class DatasetIntegrityTests(unittest.TestCase):
-    REPO_ROOT = Path(__file__).resolve().parents[2]
-    DATASET_PATH = (
-        REPO_ROOT
-        / "docs"
-        / "technical-docs"
-        / "resultados-benchmark-similaridade.csv"
-    )
+    REPO_ROOT = REPO_ROOT
+    DATASET_PATH = DATASET_CSV
 
     def test_loads_only_pair_inputs_from_results_csv(self):
         csv_content = (
@@ -86,6 +87,12 @@ class DatasetIntegrityTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "at least one pair"):
                 load_pairs_csv(dataset_path)
 
+    # Unico teste desta classe que depende do CSV do repositorio: o compose monta
+    # so ./api, entao dentro do container o caminho nao existe e o teste e pulado.
+    @unittest.skipUnless(
+        DATASET_CSV.exists(),
+        "resultados-benchmark-similaridade.csv ausente (fora da imagem do backend)",
+    )
     def test_all_pairs_use_verbatim_requirements_from_documented_sources(self):
         pairs = load_pairs_csv(self.DATASET_PATH)
 

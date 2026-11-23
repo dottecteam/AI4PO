@@ -27,17 +27,18 @@ export default function projetosPage() {
     valor: s,
   }))
 
-  useEffect(() => {
-    async function carregarProjetos() {
-      try {
-        const dados = await projetoService.listar()
-        setProjetos(dados)
-      } catch (erro) {
-        console.error("Erro ao carregar projetos:", erro)
-      } finally {
-        setCarregando(false)
-      }
+  async function carregarProjetos() {
+    try {
+      const dados = await projetoService.listar()
+      setProjetos(dados)
+    } catch (erro) {
+      console.error("Erro ao carregar projetos:", erro)
+    } finally {
+      setCarregando(false)
     }
+  }
+
+  useEffect(() => {
     carregarProjetos()
   }, [])
 
@@ -151,6 +152,7 @@ export default function projetosPage() {
         <ProjetoCadastro
           aberto={modalAberto}
           onFechar={() => setModalAberto(false)}
+          onCadastrar={carregarProjetos}
         />
       </div>
 

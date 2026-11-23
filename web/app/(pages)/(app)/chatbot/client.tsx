@@ -9,14 +9,18 @@ import {
   FileText,
   X,
   ArrowDownToLine,
+  Square,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { exportarConversaPDF } from "@/app/services/API/chat"
+import { api } from "@/app/services/API/api"
 import CartaoValidacao, {
   type Validacao,
 } from "@/app/components/app/CartaoValidacao"
+import CartaoAcao, { type AcaoChat } from "@/app/components/app/CartaoAcao"
 import { comandos } from "@/app/constants/commands"
+import { formatarHora } from "@/app/utils/formatarHora"
 
 const extensoes = [".txt", ".md"]
 const tamanho_max = 10 * 1024 * 1024
@@ -25,25 +29,39 @@ const altura_max_input = 160 // px (~6 linhas): acima disso o campo passa a rola
 // Origem de um trecho usado na resposta (campo "fontes" do /api/chat/)
 type Fonte = {
   chunk_id: number
+  projeto_id: number
   projeto: string
+  documento_id: number
   documento: string
   secao: string | null
   trecho: string
   similaridade: number
 }
 
+// Pergunta de esclarecimento do fluxo de cadastros, com respostas sugeridas
+type Pergunta = { texto: string; opcoes: string[] }
+
 type Mensagem = {
   tipo: "usuario" | "agente" | "anexo"
   texto: string
   anexo?: string
   validacao?: Validacao
+  pergunta?: Pergunta
+  acao?: AcaoChat
   fontes?: Fonte[]
+  criado_em?: string
+  interrompido?: boolean
 }
 
 type MensagemApi = {
   papel: "user" | "assistant"
   conteudo: string
   anexo_nome: string
+  criado_em?: string
+  fontes?: Fonte[]
+  validacao?: Validacao | null
+  pergunta?: Pergunta | null
+  acao?: AcaoChat | null
 }
 
 function getCookie(name: string) {
@@ -65,6 +83,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
   const inputArquivoRef = useRef<HTMLInputElement>(null)
   const fimMensagensRef = useRef<HTMLDivElement>(null)
   const campoTextoRef = useRef<HTMLTextAreaElement>(null)
+  const [titulo, setTitulo] = useState("")
 
   const [mostrarComandos, setMostrarComandos] = useState(false)
   const selecionarComando = (comando: string) => {
@@ -93,11 +112,17 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       },
     )
       .then((res) => res.json())
-      .then((data: { mensagens: MensagemApi[] }) => {
+      .then((data: { titulo?: string; mensagens: MensagemApi[] }) => {
+        setTitulo(data.titulo ?? "")
         const carregadas: Mensagem[] = data.mensagens.map((m) => ({
           tipo: m.papel === "user" ? "usuario" : "agente",
           texto: m.conteudo,
           anexo: m.anexo_nome || undefined,
+          criado_em: m.criado_em,
+          fontes: m.fontes?.length ? m.fontes : undefined,
+          validacao: m.validacao ?? undefined,
+          pergunta: m.pergunta ?? undefined,
+          acao: m.acao ?? undefined,
         }))
         setMensagens(carregadas)
       })
@@ -105,7 +130,9 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
   }, [conversaIdInicial])
 
   useEffect(() => {
-    fimMensagensRef.current?.scrollIntoView({ behavior: "smooth" })
+    fimMensagensRef.current?.scrollIntoView({
+      behavior: carregando ? "auto" : "smooth",
+    })
   }, [mensagens, carregando])
 
   const abrirSeletorDeArquivo = () => {
@@ -135,8 +162,75 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     setAnexos((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const enviarMensagem = async () => {
-    if ((!mensagem.trim() && anexos.length === 0) || carregando) return
+  const abortRef = useRef<AbortController | null>(null)
+
+  const lerStream = async (response: Response) => {
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ""
+    let criada = false
+    let fontes: Fonte[] = []
+
+    const atualizarUltima = (fn: (m: Mensagem) => Mensagem) =>
+      setMensagens((prev) => {
+        const copia = [...prev]
+        copia[copia.length - 1] = fn(copia[copia.length - 1])
+        return copia
+      })
+
+    // o balão do agente só nasce no 1º token; até lá aparece o "Pensando..."
+    const garantirMensagem = () => {
+      if (criada) return
+      criada = true
+      setMensagens((prev) => [
+        ...prev,
+        {
+          tipo: "agente",
+          texto: "",
+          fontes,
+          criado_em: new Date().toISOString(),
+        },
+      ])
+    }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const eventos = buffer.split("\n\n")
+      buffer = eventos.pop() ?? ""
+
+      for (const ev of eventos) {
+        if (!ev.startsWith("data: ")) continue
+        const d = JSON.parse(ev.slice(6))
+
+        if (d.type === "meta") {
+          setConversaId(d.conversa_id)
+          if (d.titulo) setTitulo(d.titulo)
+          fontes = d.fontes ?? []
+        } else if (d.type === "titulo") {
+          setTitulo(d.titulo)
+        } else if (d.type === "token") {
+          garantirMensagem()
+          atualizarUltima((m) => ({ ...m, texto: m.texto + d.token }))
+        } else if (d.type === "replace") {
+          garantirMensagem()
+          atualizarUltima((m) => ({ ...m, texto: d.texto, fontes: [] }))
+        } else if (d.type === "done") {
+          setCarregando(false) // o título ainda pode estar sendo gerado no servidor
+        } else if (d.type === "error") {
+          throw new Error(d.detail)
+        }
+        // d.type === "titulo": se a sidebar tiver como atualizar, use d.titulo aqui
+      }
+    }
+  }
+
+  // `textoForcado`: resposta escolhida num botão de opção (não usa o campo de texto)
+  const enviarMensagem = async (textoForcado?: string) => {
+    const mensagem_ = textoForcado ?? mensagem
+    if ((!mensagem_.trim() && anexos.length === 0) || carregando) return
 
     if (anexos.length > 1) {
       alert("Por enquanto só é possível enviar um documento por mensagem.")
@@ -144,7 +238,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     }
 
     const arquivoParaEnvio = anexos[0]
-    const mensagemUsuario = mensagem
+    const mensagemUsuario = mensagem_
     setAnexos([])
 
     // anexo sozinho, sem texto: só mostra o card, não chama o backend
@@ -153,7 +247,12 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       if (arquivoParaEnvio) {
         setMensagens((prev) => [
           ...prev,
-          { tipo: "usuario", texto: "", anexo: arquivoParaEnvio.name },
+          {
+            tipo: "usuario",
+            texto: "",
+            anexo: arquivoParaEnvio.name,
+            criado_em: new Date().toISOString(),
+          },
         ])
       }
       return
@@ -165,6 +264,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
         tipo: "usuario",
         texto: mensagemUsuario,
         anexo: arquivoParaEnvio?.name,
+        criado_em: new Date().toISOString(),
       },
     ])
 
@@ -174,6 +274,9 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     try {
       let response
       const csrfToken = getCookie("csrftoken") ?? ""
+
+      const controller = new AbortController()
+      abortRef.current = controller
 
       if (arquivoParaEnvio) {
         const formData = new FormData()
@@ -186,6 +289,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           credentials: "include",
           headers: { "X-CSRFToken": csrfToken }, // sem Content-Type: o navegador define o boundary
           body: formData,
+          signal: controller.signal,
         })
       } else {
         response = await fetch("http://localhost:8000/api/chat/", {
@@ -198,8 +302,15 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           body: JSON.stringify({
             message: mensagemUsuario,
             conversa_id: conversaId,
+            stream: true,
           }),
+          signal: controller.signal,
         })
+      }
+
+      if (response.headers.get("content-type")?.includes("text/event-stream")) {
+        await lerStream(response)
+        return // o finally continua rodando e faz setCarregando(false)
       }
 
       const data = await response.json()
@@ -213,6 +324,7 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       }
 
       setConversaId(data.conversa_id)
+      if (data.titulo) setTitulo(data.titulo)
       setMensagens((prev) => [
         ...prev,
         {
@@ -220,9 +332,20 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
           texto: data.message,
           fontes: data.fontes ?? [], // origem dos trechos usados na resposta
           validacao: data.validacao ?? undefined, // cartão da validação
+          pergunta: data.pergunta ?? undefined, // pergunta do fluxo de cadastros
+          acao: data.acao ?? undefined, // cadastro aguardando confirmação
+          criado_em: data.criado_em ?? new Date().toISOString(),
         },
       ])
     } catch (error) {
+      if ((error as Error).name === "AbortError") {
+        setMensagens((prev) => {
+          const ultima = prev[prev.length - 1]
+          if (ultima?.tipo !== "agente") return prev // cancelou antes do 1º token
+          return [...prev.slice(0, -1), { ...ultima, interrompido: true }]
+        })
+        return
+      }
       console.error("Erro:", error)
       setMensagens((prev) => [
         ...prev,
@@ -243,6 +366,11 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
       event.preventDefault()
       enviarMensagem()
     }
+
+    if (event.key === "Escape" && carregando) {
+      pararGeracao()
+      return
+    }
   }
 
   const exportarConversa = async () => {
@@ -258,13 +386,45 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
     }
   }
 
+  const abrirDocumento = async (fonte: Fonte) => {
+    const aba = window.open("", "_blank")
+    try {
+      const documentos = await api.get<{ id: number; arquivo: string | null }[]>(
+        `/api/projects/${fonte.projeto_id}/documents/`,
+      )
+      const url = documentos.find((d) => d.id === fonte.documento_id)?.arquivo
+      if (!url) throw new Error("Documento não encontrado")
+      if (aba) {
+        aba.opener = null
+        aba.location.href = url
+      } else {
+        window.open(url, "_blank", "noopener")
+      }
+    } catch (error) {
+      console.error("Erro ao abrir documento:", error)
+      aba?.close()
+      alert("Não foi possível abrir o documento.")
+    }
+  }
+
+  const pararGeracao = () => {
+    abortRef.current?.abort()
+  }
+
+  useEffect(() => {
+    return () => abortRef.current?.abort()
+  }, [])
+
   return (
     <div className="w-full h-full flex flex-col flex-1 bg-background">
       {/* Header do Chat */}
       <div className="w-full shrink-0 flex justify-between items-center px-4 sm:px-6 lg:px-8 py-4 bg-background border-b border-gray-800/50 z-10">
         <div className="w-auto flex flex-col gap-1 min-w-0">
-          <h1 className="text-white font-semibold text-lg sm:text-2xl lg:text-3xl truncate">
-            Assistente RAG Pro4Tech
+          <h1
+            title={titulo || undefined}
+            className="text-white font-semibold text-lg sm:text-2xl lg:text-3xl truncate"
+          >
+            {titulo || "Assistente RAG Pro4Tech"}
           </h1>
           <span className="flex items-center gap-2 text-secondary text-xs sm:text-sm">
             <div className="bg-green-500 w-2.5 h-2.5 rounded-full shrink-0 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
@@ -348,6 +508,29 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
                 ) : (
                   msg.texto
                 ))}
+              {msg.acao && (
+                <CartaoAcao
+                  acao={msg.acao}
+                  onAtualizada={(acao) =>
+                    setMensagens((prev) => prev.map((m, i) => (i === index ? { ...m, acao } : m)))
+                  }
+                />
+              )}
+              {msg.pergunta && msg.pergunta.opcoes.length > 0 && index === mensagens.length - 1 && (
+                <div className="mt-3 flex flex-wrap gap-2" aria-label="Respostas sugeridas">
+                  {msg.pergunta.opcoes.map((opcao) => (
+                    <button
+                      key={opcao}
+                      type="button"
+                      onClick={() => enviarMensagem(opcao)}
+                      disabled={carregando}
+                      className="h-8 px-3 rounded-full text-xs text-white border border-primary/40 bg-primary/10 hover:bg-primary/20 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {opcao}
+                    </button>
+                  ))}
+                </div>
+              )}
               {msg.fontes && msg.fontes.length > 0 && (
                 <details className="mt-3 pt-2 border-t border-gray-700/50 text-xs text-secondary">
                   <summary className="cursor-pointer select-none font-medium hover:text-white">
@@ -356,10 +539,22 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
                   <ul className="mt-2 space-y-2">
                     {msg.fontes.map((fonte, i) => (
                       <li key={`${fonte.chunk_id}-${i}`}>
-                        <span className="text-gray-300 font-medium">
-                          {fonte.projeto} › {fonte.documento}
-                          {fonte.secao ? ` › ${fonte.secao}` : ""}
-                        </span>
+                        {fonte.documento_id ? (
+                          <button
+                            type="button"
+                            onClick={() => abrirDocumento(fonte)}
+                            title="Abrir documento"
+                            className="text-gray-300 font-medium text-left underline-offset-2 hover:text-white hover:underline cursor-pointer"
+                          >
+                            {fonte.projeto} › {fonte.documento}
+                            {fonte.secao ? ` › ${fonte.secao}` : ""}
+                          </button>
+                        ) : (
+                          <span className="text-gray-300 font-medium">
+                            {fonte.projeto} › {fonte.documento}
+                            {fonte.secao ? ` › ${fonte.secao}` : ""}
+                          </span>
+                        )}
                         <span className="ml-2 opacity-70">
                           {Math.round(fonte.similaridade * 100)}%
                         </span>
@@ -371,10 +566,27 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
                   </ul>
                 </details>
               )}
+
+              {msg.interrompido && (
+                <span className="block mt-2 text-xs italic opacity-60">
+                  Resposta interrompida
+                </span>
+              )}
+
+              {msg.criado_em && (
+                <div
+                  className={`mt-1 text-[11px] opacity-60 ${
+                    msg.tipo === "usuario" ? "text-right" : "text-left"
+                  }`}
+                  suppressHydrationWarning
+                >
+                  {formatarHora(msg.criado_em)}
+                </div>
+              )}
             </div>
           </div>
         ))}
-        {carregando && (
+        {carregando && mensagens[mensagens.length - 1]?.tipo !== "agente" && (
           <div className="flex justify-start">
             <div className="bg-(--surface-elevated) text-secondary rounded-2xl rounded-tl-sm px-5 py-3 text-sm animate-pulse border border-gray-800/50">
               Pensando...
@@ -477,14 +689,26 @@ function ChatBot({ conversaIdInicial }: { conversaIdInicial?: number }) {
               className="block w-full min-h-12 md:min-h-14 max-h-40 resize-none overflow-y-auto scrollbar-input bg-(--surface-elevated) outline-none rounded-xl px-4 py-3 md:py-4 text-sm sm:text-base text-white focus:ring-2 focus:ring-primary border border-gray-700/50 transition duration-200"
             />
           </div>
-          <button
-            type="button"
-            onClick={enviarMensagem}
-            disabled={carregando || (!mensagem.trim() && anexos.length === 0)}
-            className="w-12 h-12 md:w-14 md:h-14 bg-primary rounded-xl flex items-center justify-center hover:bg-primary-dark transition-colors duration-200 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer"
-          >
-            <Send size={20} className="text-white" />
-          </button>
+          {carregando ? (
+            <button
+              type="button"
+              onClick={pararGeracao}
+              aria-label="Parar geração"
+              title="Parar geração"
+              className="w-12 h-12 md:w-14 md:h-14 bg-red-600 rounded-xl flex items-center justify-center hover:bg-red-700 transition-colors duration-200 shrink-0 shadow-md cursor-pointer"
+            >
+              <Square size={18} className="text-white" fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => enviarMensagem()}
+              disabled={!mensagem.trim() && anexos.length === 0}
+              className="w-12 h-12 md:w-14 md:h-14 bg-primary rounded-xl flex items-center justify-center hover:bg-primary-dark transition-colors duration-200 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer"
+            >
+              <Send size={20} className="text-white" />
+            </button>
+          )}
         </div>
       </div>
     </div>

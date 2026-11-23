@@ -1,6 +1,9 @@
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
-from django.db import transaction
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.db import IntegrityError, transaction
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -43,13 +46,78 @@ def revogar_sessoes(user):
         BlacklistedToken.objects.get_or_create(token=token)
 
 
+SENHA_MIN = 8
+NOME_MAX = 100
+EMAIL_MAX = 254
+
+
+def _texto(valor):
+    return valor.strip() if isinstance(valor, str) else ""
+
+
+def validar_dados(dados, parcial=False, ignorar_pk=None):
+    tem = lambda campo: (not parcial) or (campo in dados)
+    nome = _texto(dados.get("nome"))
+    email = _texto(dados.get("email")).lower()
+    senha = dados.get("senha") if isinstance(dados.get("senha"), str) else "" 
+    limpos, erros = {}, {}
+
+    if tem("nome"):
+        limpos["nome"] = nome
+        if not nome:
+            erros["nome"] = ["O nome é obrigatório."]
+        elif len(nome) > NOME_MAX:
+            erros["nome"] = [f"O nome pode ter no máximo {NOME_MAX} caracteres."]
+
+    if tem("email"):
+        limpos["email"] = email
+        if not email:
+            erros["email"] = ["O e-mail é obrigatório."]
+        elif len(email) > EMAIL_MAX:
+            erros["email"] = [f"O e-mail pode ter no máximo {EMAIL_MAX} caracteres."]
+        else:
+            try:
+                validate_email(email)
+            except ValidationError:
+                erros["email"] = ["Informe um e-mail válido."]
+            else:
+                existentes = User.objects.filter(email__iexact=email)
+                if ignorar_pk is not None:
+                    existentes = existentes.exclude(pk=ignorar_pk)
+                existente = existentes.first()
+                if existente is not None:
+                    erros["email"] = [
+                        "Este e-mail pertence a um login excluído e não pode ser reutilizado."
+                        if existente.excluido_em is not None
+                        else "Já existe um login com este e-mail."
+                    ]
+
+    if tem("senha"):
+        limpos["senha"] = senha
+        if not senha:
+            erros["senha"] = ["A senha é obrigatória."]
+        elif len(senha) < SENHA_MIN:
+            erros["senha"] = [f"A senha deve ter pelo menos {SENHA_MIN} caracteres."]
+        else:
+            try:
+                validate_password(senha, user=User(email=email, nome=nome))
+            except ValidationError as e:
+                erros["senha"] = list(e.messages)
+
+    return limpos, erros
+
+
+def validar_cadastro(dados):
+    return validar_dados(dados)
+
+
 # Limita requisições anônimas a 5 tentativas por minuto por IP
 class LoginThrottle(AnonRateThrottle):
     rate = '5/min'
 
 class LoginView(APIView):
     authentication_classes = []
-    permission_classes = []  # login tem que ser acessível sem estar autenticado
+    permission_classes = []
     throttle_classes = [LoginThrottle]
 
     def post(self, request):
@@ -71,7 +139,6 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
-
     authentication_classes = []
     permission_classes = []
 
@@ -109,6 +176,8 @@ class AdminUserListView(APIView):
     def get(self, request):
         queryset = User.objects.all().order_by("nome")
 
+        # Logins excluídos ficam fora da listagem, a menos que se peça
+        # explicitamente com ?incluir_excluidos=true
         if request.query_params.get("incluir_excluidos", "").lower() not in ["true", "1"]:
             queryset = queryset.filter(excluido_em__isnull=True)
 
@@ -123,9 +192,25 @@ class AdminUserListView(APIView):
         dados = [serialize_user_admin(u) for u in queryset]
         return Response(dados, status=200)
 
+    def post(self, request):
+        dados = request.data if isinstance(request.data, dict) else {}  # corpo que não é objeto JSON
+        limpos, erros = validar_cadastro(dados)
+        if erros:
+            return Response({"detail": "Corrija os campos destacados.", "campos": erros}, status=400)
+
+        try:
+            with transaction.atomic():
+                novo = User.objects.create_user(
+                    email=limpos["email"], nome=limpos["nome"], password=limpos["senha"]
+                )
+        except IntegrityError:
+            erros = {"email": ["Já existe um login com este e-mail."]}
+            return Response({"detail": "Corrija os campos destacados.", "campos": erros}, status=400)
+
+        return Response(serialize_user_admin(novo), status=201)
+
 
 class AdminUserDetailView(APIView):
-
     permission_classes = [IsAdmin]
 
     def _alvo(self, request, id_po):
@@ -138,17 +223,39 @@ class AdminUserDetailView(APIView):
     def patch(self, request, id_po):
         alvo = self._alvo(request, id_po)
         if alvo is None:
-            return Response({"detail": "Você não pode alterar o estado do próprio login."}, status=403)
+            return Response({"detail": "Você não pode alterar o próprio login por aqui."}, status=403)
 
-        novo_estado = request.data.get("is_active")
-        if not isinstance(novo_estado, bool):
-            return Response({"detail": "O campo 'is_active' (true ou false) é obrigatório."}, status=400)
+        dados = request.data if isinstance(request.data, dict) else {}  # corpo que não é objeto JSON
+        muda_estado = "is_active" in dados
+        if muda_estado and not isinstance(dados.get("is_active"), bool):
+            return Response({"detail": "O campo 'is_active' deve ser true ou false."}, status=400)
+        if not muda_estado and not any(c in dados for c in ("nome", "email", "senha")):
+            return Response({"detail": "Informe ao menos um campo para alterar."}, status=400)
 
-        with transaction.atomic():
-            alvo.is_active = novo_estado
-            alvo.save(update_fields=["is_active"])
-            if not novo_estado:
-                revogar_sessoes(alvo)
+        limpos, erros = validar_dados(dados, parcial=True, ignorar_pk=alvo.pk)
+        if erros:
+            return Response({"detail": "Corrija os campos destacados.", "campos": erros}, status=400)
+
+        revoga = False
+        try:
+            with transaction.atomic():
+                if "nome" in limpos:
+                    alvo.nome = limpos["nome"]
+                if "email" in limpos:
+                    alvo.email = limpos["email"]
+                if "senha" in limpos:
+                    alvo.set_password(limpos["senha"])
+                    revoga = True
+                if muda_estado:
+                    alvo.is_active = dados["is_active"]
+                    revoga = revoga or not alvo.is_active
+                alvo.save()
+                if revoga:
+                    revogar_sessoes(alvo)
+        except IntegrityError:
+            # Corrida: outro login com o mesmo e-mail entrou entre a validação e o UPDATE.
+            erros = {"email": ["Já existe um login com este e-mail."]}
+            return Response({"detail": "Corrija os campos destacados.", "campos": erros}, status=400)
 
         return Response(serialize_user_admin(alvo), status=200)
 

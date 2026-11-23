@@ -3,6 +3,7 @@ import logging
 
 import requests
 from decouple import config
+from .ollama_config import THINK
 
 from .models import MensagemChat
 from .prompts import montar_system_prompt
@@ -23,7 +24,7 @@ REFORMAT_TIMEOUT = config("OLLAMA_REFORMAT_TIMEOUT", default=300, cast=int)
 ROUTER_TIMEOUT = config("OLLAMA_ROUTER_TIMEOUT", default=60, cast=int)
 
 TIPOS_VALIDOS = {"pbi", "feature", "epico"}
-INTENCOES_VALIDAS = {"reformatar", "ajustar", "conversar"}
+INTENCOES_VALIDAS = {"reformatar", "ajustar", "conversar", "acao"}
 
 REGRA_SAIDA = (
     "Responda SOMENTE com a estrutura pedida no system prompt, sem introdução, "
@@ -42,6 +43,7 @@ Intenções:
 - "reformatar": o PO FORNECE NA MENSAGEM um rascunho/texto de requisito (uma necessidade solta) para ser reescrito e padronizado em PBI/Feature/Épico, OU dá um comando EXPLÍCITO de formatação ("reformate", "padronize", "reescreva como PBI", "transforme em épico"). Regra de ouro: se a mensagem é uma PERGUNTA ou um pedido para LISTAR/MOSTRAR/EXPLICAR/BUSCAR requisitos que já existem no projeto, NÃO é reformatar — é "conversar".
 - "ajustar": SÓ vale se a última resposta do assistente foi uma reformatação. O PO pede uma mudança nessa versão (encurtar, dividir, adicionar, remover ou trocar algo).
 - "conversar": pergunta, dúvida, pedido de explicação, ou pedido para listar/mostrar/buscar informação sobre projetos, requisitos, critérios, regras ou decisões.
+- "acao": o PO pede para CADASTRAR/CRIAR/ADICIONAR na plataforma um projeto, um profissional (membro da equipe), uma competência ou um login/usuário. Criar um PBI, feature ou épico NÃO é "acao" (é "reformatar").
 
 Tipo do requisito: "pbi", "feature" ou "epico", conforme o PO mencionar. Se não mencionar, use "pbi".
 
@@ -57,6 +59,10 @@ Exemplos:
 - (última resposta foi reformatação: sim) "Deixe os critérios de aceite mais curtos" -> ajustar, pbi
 - (última resposta foi reformatação: sim) "Esse PBI está grande demais, divida em dois" -> ajustar, pbi
 - (última resposta foi reformatação: sim) "Qual a diferença entre feature e épico?" -> conversar, pbi
+- (última resposta foi reformatação: não) "Cadastre o projeto Portal de Vendas" -> acao, pbi
+- (última resposta foi reformatação: não) "Adicione a Maria Silva na equipe, ela sabe React e Figma" -> acao, pbi
+- (última resposta foi reformatação: não) "Crie um login para o João, joao@empresa.com" -> acao, pbi
+- (última resposta foi reformatação: não) "Quero criar um PBI de login" -> reformatar, pbi
 """
 
 SCHEMA_INTENCAO = {
@@ -98,6 +104,7 @@ def classificar_intencao(message, ultima_foi_reformatacao):
                 ],
                 "format": SCHEMA_INTENCAO,
                 "stream": False,
+                "think": THINK,
                 "keep_alive": KEEP_ALIVE,
                 # a resposta é um JSON minúsculo; o limite impede que o
                 # roteador gaste tempo à toa
@@ -170,6 +177,7 @@ def gerar_reformatacao(mensagem, tipo, anterior=None):
                 "model": MODEL,
                 "messages": messages,
                 "stream": False,
+                "think": THINK,
                 "keep_alive": KEEP_ALIVE,
                 "options": {"temperature": 0.1, "num_predict": NUM_PREDICT},
             },
